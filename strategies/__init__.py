@@ -51,6 +51,7 @@ from .breakout import DonchianBreakout, RangeBreakout, GapStrategy, HighLowBreak
 from .patterns import CandlestickPatterns, ThreeBarPatterns, SwingHighLow
 from .ensemble import VotingEnsemble, ConfirmationEnsemble, BestOfEnsemble
 from .adaptive import AdaptiveStrategy
+from .regime import RegimeStrategy
 
 # All available strategies
 ALL_STRATEGIES = [
@@ -86,6 +87,7 @@ ALL_STRATEGIES = [
     BestOfEnsemble,
     # Adaptive
     AdaptiveStrategy,
+    RegimeStrategy,
 ]
 
 # Strategy categories
@@ -98,7 +100,7 @@ CATEGORIES = {
     "breakout": [DonchianBreakout, RangeBreakout, GapStrategy, HighLowBreakout],
     "patterns": [CandlestickPatterns, ThreeBarPatterns, SwingHighLow],
     "ensemble": [VotingEnsemble, ConfirmationEnsemble, BestOfEnsemble],
-    "adaptive": [AdaptiveStrategy],
+    "adaptive": [AdaptiveStrategy, RegimeStrategy],
 }
 
 __all__ = [
@@ -138,4 +140,5 @@ __all__ = [
     "BestOfEnsemble",
     # Adaptive
     "AdaptiveStrategy",
+    "RegimeStrategy",
 ]
