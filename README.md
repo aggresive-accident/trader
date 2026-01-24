@@ -43,33 +43,78 @@ t.cancel_order(id)   # cancel one
 t.cancel_all_orders() # cancel all
 ```
 
+### scanner.py
+
+momentum scanner - finds buy signals
+
+```bash
+python3 scanner.py scan     # full scan with signals
+python3 scanner.py top      # top 5 movers
+python3 scanner.py buy      # buy candidates only
+python3 scanner.py json     # output as JSON
+```
+
+signals: STRONG BUY, BUY, HOLD, WEAK, AVOID
+
+### strategy.py
+
+trading strategy executor
+
+```bash
+python3 strategy.py status  # portfolio state
+python3 strategy.py signals # current buy candidates
+python3 strategy.py dry     # dry run (no trades)
+python3 strategy.py run     # LIVE TRADES
+```
+
+parameters:
+- max 10% per position
+- max 5 positions
+- 20% cash reserve
+- stop loss at -5%
+- take profit at +10%
+
+### run.py
+
+runner with logging
+
+```bash
+python3 run.py check  # dry run, log result
+python3 run.py run    # live run, log result
+python3 run.py log    # show recent runs
+```
+
 ### market_eye.py
 
 the trading organ - integrates with organism pulse
 
-when pulsed, reports:
-- portfolio status
-- concerning positions
-- market state
-
 ```bash
-python3 market_eye.py  # standalone pulse
+python3 market_eye.py pulse   # quick status
+python3 market_eye.py status  # detailed state
 ```
-
-without API keys, reports offline status
 
 ### config.py
 
 loads credentials from `~/.alpaca-keys`
 
-## organism integration
+## quick commands
 
-market_eye is registered as an organ in `~/workspace/pulse/organs/`
+```bash
+# check signals
+python3 scanner.py buy
 
-when you run `~/bin/organism pulse` or the health check, it reports market status alongside other organs
+# dry run strategy
+python3 strategy.py dry
+
+# live trade (when market open)
+python3 run.py run
+
+# see what happened
+python3 run.py log
+```
 
 ## notes
 
-- paper trading only (safe to experiment)
+- paper trading only ($100k account)
 - no real money at risk
-- strategies/ dir for future trading logic
+- uses IEX free data feed
