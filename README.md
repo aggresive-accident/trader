@@ -1,105 +1,115 @@
 # trader
 
-my interface to the market
+My interface to the market. Paper trading via Alpaca.
 
-paper trading via Alpaca, integrated with the organism
+## The Edge
 
-## setup
+**Buy the strongest momentum stock on a pullback, stop below ATR, let it run.**
 
-1. create `~/.alpaca-keys`:
-```
-ALPACA_API_KEY=your_key
-ALPACA_SECRET_KEY=your_secret
-```
+Backtested over 1 year:
 
-2. get keys from https://app.alpaca.markets (paper trading account)
+| Metric | Result |
+|--------|--------|
+| Return | +42% |
+| Max Drawdown | 6.8% |
+| Trades | 74 |
+| Win Rate | 47% |
+| Profit Factor | 2.92 |
+| Alpha vs Buy-Hold | +5.3% |
 
-## modules (16)
+## Entry Criteria
 
-### core
+- Weekly return 5-10% (momentum, not overextended)
+- Price above 20 MA
+- Volume confirmation (>1.3x average)
 
-| module | purpose |
-|--------|---------|
-| trader.py | core trading operations (buy, sell, quotes) |
-| config.py | loads API credentials |
+## Exit Criteria
 
-### analysis
+- Stop hit (1.5x ATR below entry)
+- Close below 20 MA
+- Trailing stop (gave back 50% of gains)
 
-| module | purpose |
-|--------|---------|
-| scanner.py | momentum scanner - STRONG BUY, BUY, HOLD, WEAK, AVOID |
-| sectors.py | sector rotation - tracks SPDR ETFs vs SPY |
-| watchlist.py | custom watchlist with notes |
+## Position Sizing
 
-### execution
+- Max 4 concurrent positions
+- Max 20% per position
+- Max 3% portfolio risk per trade
 
-| module | purpose |
-|--------|---------|
-| strategy.py | position sizing (10% max, 5 positions, 20% cash) |
-| run.py | runner with logging |
-| backtest.py | test strategies on historical data |
-
-### tracking
-
-| module | purpose |
-|--------|---------|
-| alerts.py | signal change detection |
-| performance.py | portfolio metrics (return, sharpe, drawdown) |
-| quotes.py | price history per symbol |
-| journal.py | trade journal with reasoning |
-
-### reporting
-
-| module | purpose |
-|--------|---------|
-| daily.py | daily summary (runs once/day) |
-| dashboard.py | one-page trading overview |
-| voice_alerts.py | narrated market briefing |
-
-### organism
-
-| module | purpose |
-|--------|---------|
-| market_eye.py | organ - integrates with organism pulse |
-
-## quick commands
+## Morning Routine
 
 ```bash
-# morning overview
-python3 dashboard.py
-
-# check signals
-python3 scanner.py buy
-
-# sector rotation
-python3 sectors.py scan
-
-# voice briefing
-python3 voice_alerts.py brief
-
-# watchlist
-python3 watchlist.py scan
-
-# dry run strategy
-python3 strategy.py dry
-
-# live trade (market open)
-python3 run.py run
-
-# journal
-python3 journal.py list
+python3 morning.py  # Full pre-market checklist
 ```
 
-## market phases
+Runs in sequence:
+1. Gap scanner - overnight moves
+2. Market regime - trend/volatility
+3. Edge signals - entry opportunities
+4. Position monitor - exit signals
 
-- pre-market (4am-9:30am ET)
-- regular (9:30am-4pm ET)
-- after-hours (4pm-8pm ET)
-- closed
+## Core Scripts
 
-## notes
+| Script | Purpose |
+|--------|---------|
+| `edge.py` | Core system - scan and calculate positions |
+| `execute.py` | Trade execution with journaling |
+| `monitor.py` | Position monitoring with trailing stops |
+| `premarket.py` | Gap scanner |
+| `alerts.py` | Signal change notifications |
+| `analytics.py` | Performance vs backtest |
+| `market_report.py` | Market regime analysis |
+| `morning.py` | Pre-market checklist |
 
-- paper trading only ($100k account)
-- no real money at risk
-- uses IEX free data feed
-- market_eye integrated with organism
+## Trade Execution
+
+```bash
+# Dry run (default)
+python3 execute.py
+
+# Live execution
+python3 execute.py --execute
+
+# Manual trade
+python3 execute.py --execute --symbol META --action buy --shares 30
+```
+
+## Monitoring
+
+```bash
+python3 monitor.py           # Check positions
+python3 alerts.py check      # New signals
+python3 alerts.py history    # Alert log
+python3 analytics.py         # Performance review
+```
+
+## Setup
+
+API keys in `~/.alpaca-keys` (chmod 600):
+```
+APCA_API_KEY_ID=your_key
+APCA_API_SECRET_KEY=your_secret
+```
+
+## Files
+
+- `trades.json` - Trade journal
+- `alerts_log.json` - Alert history
+- `high_water_marks.json` - Trailing stop tracking
+
+## Rules
+
+1. One trade per slot (max 4)
+2. No averaging down
+3. If stopped out, done for the day
+4. Journal every decision
+
+## Strategy Zoo
+
+`strategies/` contains 21 strategies for research/validation. The actual edge uses only momentum concentration in `edge.py`.
+
+## Notes
+
+- Paper trading only ($100k account)
+- Uses IEX data feed
+- Integrated with organism (market_eye.py)
+- Trades logged to relay for continuity
