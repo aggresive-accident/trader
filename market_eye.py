@@ -104,6 +104,24 @@ def pulse() -> dict:
         else:
             observations.append("market closed")
 
+        # Check trade alerts (signal changes)
+        try:
+            from alerts import get_alerts
+            signal_alerts = get_alerts()
+            for sa in signal_alerts:
+                if sa["type"] == "UPGRADE":
+                    observations.append(f"{sa['symbol']} upgraded to {sa['to']}")
+                elif sa["type"] == "STRONG_BUY":
+                    alerts.append(f"{sa['symbol']} now STRONG BUY ({sa['momentum']:+.1f}%)")
+                elif sa["type"] == "NEW_BUY":
+                    observations.append(f"{sa['symbol']} new buy signal")
+                elif sa["type"] == "DOWNGRADE":
+                    alerts.append(f"{sa['symbol']} downgraded: {sa['from']} → {sa['to']}")
+                elif sa["type"] == "AVOID":
+                    alerts.append(f"{sa['symbol']} turned to AVOID")
+        except Exception:
+            pass  # alerts not available
+
         # Store state
         state["observations"] = observations
         state["alerts"] = alerts
