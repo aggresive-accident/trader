@@ -99,8 +99,13 @@ def pulse() -> dict:
             observations.append("no positions - all cash")
 
         # Market status
+        phase = clock.get("phase", "unknown")
         if clock["is_open"]:
             observations.append("market OPEN")
+        elif phase == "pre-market":
+            observations.append("pre-market hours")
+        elif phase == "after-hours":
+            observations.append("after-hours trading")
         else:
             observations.append("market closed")
 

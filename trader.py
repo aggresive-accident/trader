@@ -83,10 +83,30 @@ class Trader:
         }
 
     def get_clock(self) -> dict:
-        """Get market clock"""
+        """Get market clock with extended hours info"""
         clock = self.trading.get_clock()
+
+        # Determine market phase
+        now = clock.timestamp
+        next_open = clock.next_open
+        next_close = clock.next_close
+
+        # Market hours (EST): Pre-market 4am-9:30am, Regular 9:30am-4pm, After-hours 4pm-8pm
+        hour = now.hour
+        minute = now.minute
+
+        if clock.is_open:
+            phase = "regular"
+        elif 4 <= hour < 9 or (hour == 9 and minute < 30):
+            phase = "pre-market"
+        elif 16 <= hour < 20:
+            phase = "after-hours"
+        else:
+            phase = "closed"
+
         return {
             "is_open": clock.is_open,
+            "phase": phase,
             "timestamp": clock.timestamp.isoformat(),
             "next_open": clock.next_open.isoformat(),
             "next_close": clock.next_close.isoformat(),
