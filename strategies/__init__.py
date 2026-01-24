@@ -50,6 +50,7 @@ from .volatility import ATRBreakout, VolatilityContraction, KeltnerChannel
 from .breakout import DonchianBreakout, RangeBreakout, GapStrategy, HighLowBreakout
 from .patterns import CandlestickPatterns, ThreeBarPatterns, SwingHighLow
 from .ensemble import VotingEnsemble, ConfirmationEnsemble, BestOfEnsemble
+from .adaptive import AdaptiveStrategy
 
 # All available strategies
 ALL_STRATEGIES = [
@@ -83,6 +84,8 @@ ALL_STRATEGIES = [
     VotingEnsemble,
     ConfirmationEnsemble,
     BestOfEnsemble,
+    # Adaptive
+    AdaptiveStrategy,
 ]
 
 # Strategy categories
@@ -95,6 +98,7 @@ CATEGORIES = {
     "breakout": [DonchianBreakout, RangeBreakout, GapStrategy, HighLowBreakout],
     "patterns": [CandlestickPatterns, ThreeBarPatterns, SwingHighLow],
     "ensemble": [VotingEnsemble, ConfirmationEnsemble, BestOfEnsemble],
+    "adaptive": [AdaptiveStrategy],
 }
 
 __all__ = [
@@ -132,4 +136,6 @@ __all__ = [
     "VotingEnsemble",
     "ConfirmationEnsemble",
     "BestOfEnsemble",
+    # Adaptive
+    "AdaptiveStrategy",
 ]
