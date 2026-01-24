@@ -44,6 +44,28 @@ def log_trade(trade: dict):
     save_journal(trades)
 
 
+def relay_trade(trade: dict):
+    """Log trade to relay for session continuity"""
+    try:
+        import subprocess
+        action = trade.get("action", "TRADE")
+        symbol = trade.get("symbol", "?")
+        shares = trade.get("shares", 0)
+        reason = trade.get("reason", "")
+
+        msg = f"[TRADE] {action} {shares} {symbol}"
+        if reason:
+            msg += f" - {reason}"
+
+        subprocess.run(
+            ["python3", str(Path.home() / "workspace/relay/relay.py"), "add", msg],
+            capture_output=True,
+            timeout=5,
+        )
+    except Exception:
+        pass  # Don't fail trade if relay fails
+
+
 def execute_buy(symbol: str, shares: int, stop_price: float, reason: str, dry_run: bool = True) -> dict:
     """Execute a buy order"""
     trader = Trader()
@@ -65,6 +87,7 @@ def execute_buy(symbol: str, shares: int, stop_price: float, reason: str, dry_ru
             "reason": reason,
         }
         log_trade(trade)
+        relay_trade(trade)
 
         return order
     except Exception as e:
@@ -91,6 +114,7 @@ def execute_sell(symbol: str, shares: int, reason: str, dry_run: bool = True) ->
             "reason": reason,
         }
         log_trade(trade)
+        relay_trade(trade)
 
         return order
     except Exception as e:
