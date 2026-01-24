@@ -49,7 +49,7 @@ from .volume import VolumeBreakout, OnBalanceVolume, VWAP
 from .volatility import ATRBreakout, VolatilityContraction, KeltnerChannel
 from .breakout import DonchianBreakout, RangeBreakout, GapStrategy, HighLowBreakout
 from .patterns import CandlestickPatterns, ThreeBarPatterns, SwingHighLow
-from .ensemble import VotingEnsemble, ConfirmationEnsemble
+from .ensemble import VotingEnsemble, ConfirmationEnsemble, BestOfEnsemble
 
 # All available strategies
 ALL_STRATEGIES = [
@@ -82,6 +82,7 @@ ALL_STRATEGIES = [
     # Ensemble
     VotingEnsemble,
     ConfirmationEnsemble,
+    BestOfEnsemble,
 ]
 
 # Strategy categories
@@ -93,7 +94,7 @@ CATEGORIES = {
     "volatility": [ATRBreakout, VolatilityContraction, KeltnerChannel],
     "breakout": [DonchianBreakout, RangeBreakout, GapStrategy, HighLowBreakout],
     "patterns": [CandlestickPatterns, ThreeBarPatterns, SwingHighLow],
-    "ensemble": [VotingEnsemble, ConfirmationEnsemble],
+    "ensemble": [VotingEnsemble, ConfirmationEnsemble, BestOfEnsemble],
 }
 
 __all__ = [
@@ -130,4 +131,5 @@ __all__ = [
     # Ensemble
     "VotingEnsemble",
     "ConfirmationEnsemble",
+    "BestOfEnsemble",
 ]
