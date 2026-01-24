@@ -4,25 +4,21 @@
 
 1. Run `python3 edge.py` - check overnight changes
 2. Run `python3 market_report.py` - regime check
-3. Check AMD pre-market price:
-   - If gapped down to $247-250: PREPARE TO BUY
-   - If gapped up: WAIT, don't chase
-   - If flat: WATCH for first 30 min
+3. Check top setup from edge.py output
 
 ## At Open (9:30 AM ET)
 
-### If AMD < $250:
+### Current Signal: META (score 4)
 ```bash
-python3 execute.py --execute --symbol AMD --action buy --shares 77
+python3 execute.py --execute --symbol META --action buy --shares 30
 ```
-- Entry: ~$247-250
-- Stop: $235 (below ATR support)
-- Target: Let it run, trail stop
+- Entry: ~$658
+- Stop: $632 (1.5x ATR below entry)
+- Risk: 0.8% of portfolio
 
-### If AMD > $255:
-- DO NOT BUY
-- Wait for pullback or find alternative setup
-- Check INTC, META as backup plays
+### Alternative: Wait for pullback
+- If META gaps up >3%: WAIT
+- Check NVDA, AMD for secondary setups
 
 ## During Day
 
