@@ -1,2 +1,10 @@
 venv/
 __pycache__/
+
+# Runtime data files
+.alert_state.json
+alerts_log.json
+equity_curve.json
+high_water_marks.json
+trades.json
+.signal_state.json
