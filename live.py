@@ -18,7 +18,6 @@ if VENV_PATH.exists():
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
-from alpaca.data.enums import DataFeed
 
 from trader import Trader
 from config import load_keys
@@ -37,20 +36,23 @@ class LiveTrader:
         api_key, secret_key = load_keys()
         self.data = StockHistoricalDataClient(api_key, secret_key)
 
-    def get_bars(self, symbol: str, days: int = 60) -> list:
+    def get_bars(self, symbol: str, days: int = 90) -> list:
         """Fetch historical bars for analysis"""
-        end = datetime.now()
+        end = datetime.now() - timedelta(days=1)  # Avoid subscription issues
         start = end - timedelta(days=days)
 
         request = StockBarsRequest(
-            symbol_or_symbols=[symbol],
+            symbol_or_symbols=symbol,
             timeframe=TimeFrame.Day,
             start=start,
             end=end,
-            feed=DataFeed.IEX,  # Use free IEX feed
         )
         bars = self.data.get_stock_bars(request)
-        return list(bars[symbol]) if symbol in bars else []
+        if hasattr(bars, 'data') and symbol in bars.data:
+            return list(bars.data[symbol])
+        elif symbol in bars:
+            return list(bars[symbol])
+        return []
 
     def analyze(self, symbol: str) -> dict:
         """Analyze a symbol and get trading signal"""
