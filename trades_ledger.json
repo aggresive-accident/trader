@@ -1,0 +1,57 @@
+{
+  "trades": [
+    {
+      "id": "T0001",
+      "timestamp": "2026-01-26T21:27:58.429400",
+      "symbol": "META",
+      "action": "BUY",
+      "qty": 30.0,
+      "price": 666.92,
+      "strategy": "momentum",
+      "reason": "imported from Alpaca",
+      "order_id": "",
+      "closed_at": null,
+      "close_price": null,
+      "pnl": null,
+      "pnl_pct": null
+    },
+    {
+      "id": "T0002",
+      "timestamp": "2026-01-26T21:27:58.429555",
+      "symbol": "XOM",
+      "action": "BUY",
+      "qty": 100.0,
+      "price": 135.01,
+      "strategy": "momentum",
+      "reason": "imported from Alpaca",
+      "order_id": "",
+      "closed_at": null,
+      "close_price": null,
+      "pnl": null,
+      "pnl_pct": null
+    }
+  ],
+  "positions": {
+    "META": {
+      "symbol": "META",
+      "qty": 30.0,
+      "avg_entry": 666.92,
+      "strategy": "momentum",
+      "opened_at": "2026-01-26T21:27:58.429385",
+      "trade_ids": [
+        "T0001"
+      ]
+    },
+    "XOM": {
+      "symbol": "XOM",
+      "qty": 100.0,
+      "avg_entry": 135.01,
+      "strategy": "momentum",
+      "opened_at": "2026-01-26T21:27:58.429550",
+      "trade_ids": [
+        "T0002"
+      ]
+    }
+  },
+  "updated_at": "2026-01-26T21:27:58.429572"
+}
