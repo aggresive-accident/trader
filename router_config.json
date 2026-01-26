@@ -1,0 +1,12 @@
+{
+  "active_strategies": ["momentum", "bollinger", "adaptive"],
+  "allocation": {
+    "momentum": 0.40,
+    "bollinger": 0.35,
+    "adaptive": 0.25
+  },
+  "symbols": ["META", "NVDA", "AMD", "GOOGL", "AAPL", "MSFT", "AMZN", "XOM", "XLE", "TSLA"],
+  "max_positions": 4,
+  "risk_per_trade": 0.03,
+  "total_capital": 100000
+}

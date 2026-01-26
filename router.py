@@ -222,12 +222,93 @@ class StrategyRouter:
         resolved = self.resolve_conflicts(signals)
         return [s for s in resolved if s.strength < 0]
 
+    def calculate_position_size(self, signal: StrategySignal, price: float) -> dict:
+        """
+        Calculate position size based on strategy allocation.
+
+        Returns:
+            {
+                "shares": int,
+                "notional": float,
+                "strategy_allocation": float,
+                "strategy_capital": float,
+            }
+        """
+        from trader import Trader
+        from ledger import Ledger
+
+        trader = Trader()
+        account = trader.get_account()
+        ledger = Ledger()
+
+        total_capital = self.config.get("total_capital", account["portfolio_value"])
+        allocation = self.config.get("allocation", {})
+        risk_per_trade = self.config.get("risk_per_trade", 0.03)
+
+        # Strategy's allocated capital
+        strat_alloc = allocation.get(signal.strategy, 0.33)
+        strategy_capital = total_capital * strat_alloc
+
+        # Capital already used by this strategy
+        strategy_positions = ledger.get_positions_by_strategy(signal.strategy)
+        used_capital = sum(
+            p.qty * p.avg_entry for p in strategy_positions
+        )
+
+        # Available capital for this strategy
+        available = max(0, strategy_capital - used_capital)
+
+        # Position size (risk-based)
+        max_position = available * risk_per_trade / risk_per_trade  # Full available
+        max_position = min(max_position, available)
+
+        shares = int(max_position / price) if price > 0 else 0
+
+        return {
+            "shares": shares,
+            "notional": shares * price,
+            "strategy_allocation": strat_alloc,
+            "strategy_capital": strategy_capital,
+            "available_capital": available,
+            "used_capital": used_capital,
+        }
+
+    def get_sized_entries(self) -> list[dict]:
+        """
+        Get entry signals with position sizes calculated.
+
+        Returns list of entry opportunities with sizing info.
+        """
+        from trader import Trader
+
+        signals = self.get_entry_signals()
+        trader = Trader()
+
+        sized = []
+        for sig in signals:
+            try:
+                quote = trader.get_quote(sig.symbol)
+                price = quote["ask"]  # Use ask for buys
+
+                sizing = self.calculate_position_size(sig, price)
+
+                if sizing["shares"] > 0:
+                    sized.append({
+                        "signal": sig.to_dict(),
+                        "price": price,
+                        "sizing": sizing,
+                    })
+            except Exception:
+                continue
+
+        return sized
+
 
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Strategy Router")
-    parser.add_argument("command", choices=["scan", "config", "entries", "exits"],
+    parser.add_argument("command", choices=["scan", "config", "entries", "exits", "sized"],
                        default="scan", nargs="?")
     parser.add_argument("-s", "--symbols", help="Comma-separated symbols")
     parser.add_argument("--json", action="store_true", help="JSON output")
@@ -247,6 +328,26 @@ def main():
 
     router = StrategyRouter()
     symbols = args.symbols.split(",") if args.symbols else None
+
+    if args.command == "sized":
+        print("Getting sized entries...")
+        sized = router.get_sized_entries()
+
+        if args.json:
+            print(json.dumps(sized, indent=2))
+        else:
+            if not sized:
+                print("No entry signals or no available capital")
+                return
+
+            print()
+            print(f"{'Strategy':<12} {'Symbol':<8} {'Shares':>8} {'Price':>10} {'Notional':>12} {'Avail Cap':>12}")
+            print("-" * 70)
+            for entry in sized:
+                sig = entry["signal"]
+                sizing = entry["sizing"]
+                print(f"{sig['strategy']:<12} {sig['symbol']:<8} {sizing['shares']:>8} ${entry['price']:>9.2f} ${sizing['notional']:>11,.0f} ${sizing['available_capital']:>11,.0f}")
+        return
 
     print("Scanning strategies...", end=" ", flush=True)
     signals = router.scan(symbols)
