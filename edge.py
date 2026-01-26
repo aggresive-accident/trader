@@ -223,8 +223,8 @@ class EdgeTrader:
     def check_exit(self, symbol: str, entry_price: float, high_water: float) -> dict:
         """Check if we should exit a position"""
         bars = self.get_bars(symbol, days=30)
-        if not bars:
-            return {"exit": False, "reason": "no data"}
+        if not bars or len(bars) < 20:
+            return {"exit": False, "reason": "insufficient data", "stop": None, "ma20": None}
 
         current = float(bars[-1].close)
         atr = self.calculate_atr(bars)
