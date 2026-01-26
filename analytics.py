@@ -161,7 +161,61 @@ def compare_to_expected(actual: dict) -> list:
     return comparisons
 
 
+def show_by_strategy():
+    """Show per-strategy analytics using the ledger"""
+    from ledger import Ledger
+
+    ledger = Ledger()
+    summary = ledger.summary()
+
+    print("=" * 60)
+    print("PER-STRATEGY ANALYTICS")
+    print("=" * 60)
+
+    if not summary["strategies"]:
+        print("\nNo trades recorded in ledger yet.")
+        print("Import positions: python3 ledger.py import")
+        return
+
+    # Open positions by strategy
+    print("\nOpen Positions:")
+    for pos in summary["positions"]:
+        print(f"  {pos['symbol']:6} {pos['qty']:>6.0f} @ ${pos['avg_entry']:>8.2f} ({pos['strategy']})")
+
+    # P&L by strategy
+    print("\nRealized P&L by Strategy:")
+    for strat, data in summary["by_strategy"].items():
+        if data["closed_trades"] > 0:
+            print(f"  {strat:15} ${data['realized_pnl']:>+10.2f} ({data['win_rate']:.0f}% win rate, {data['closed_trades']} trades)")
+        else:
+            print(f"  {strat:15} No closed trades yet ({data['total_trades']} open)")
+
+    # Current unrealized P&L
+    print("\nUnrealized P&L:")
+    trader = Trader()
+    positions = trader.get_positions()
+    for p in positions:
+        strat = ledger.get_position_strategy(p["symbol"]) or "unknown"
+        print(f"  {p['symbol']:6} ${p['unrealized_pl']:>+10.2f} ({p['unrealized_pl_pct']:>+.1f}%) [{strat}]")
+
+    total_unrealized = sum(p["unrealized_pl"] for p in positions)
+    print(f"\n  Total: ${total_unrealized:>+10.2f}")
+    print("=" * 60)
+
+
 def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Trade analytics")
+    parser.add_argument("--by-strategy", action="store_true",
+                       help="Show per-strategy P&L using ledger")
+    parser.add_argument("--json", action="store_true", help="JSON output")
+    args = parser.parse_args()
+
+    if args.by_strategy:
+        show_by_strategy()
+        return
+
     print("=" * 60)
     print("TRADE ANALYTICS")
     print("=" * 60)
