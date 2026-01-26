@@ -203,8 +203,8 @@ Before starting:
 
 - [x] Requirements approved
 - [x] Organism integration scoped
-- [ ] Backtest validation of zoo strategies
-- [ ] Clear current position (META)
+- [x] Backtest validation of zoo strategies (see backtest_results_2026-01-26.md)
+- [x] Clear current position (META) - N/A, holding positions now
 - [ ] Begin Phase 1
 
 ---
