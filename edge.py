@@ -2,14 +2,14 @@
 """
 edge.py - the actual trading system
 
-ONE EDGE: Momentum concentration with discipline.
+EDGE: Concentrated momentum, full margin, no fear.
 
 Rules:
-1. One position at a time, max 20% of portfolio
-2. Only buy top momentum stocks breaking out on volume
-3. Stop: 1.5x ATR below entry, max 3% portfolio risk
-4. Trail stop, never give back >50% of gains
-5. Exit when momentum dies (close < 20 MA)
+1. Up to 3 positions, use full buying power
+2. Only the strongest momentum names - high beta, high volume
+3. Stop: 1.0x ATR below entry, 5% portfolio risk per trade
+4. Trail tight - don't give back >40% of gains
+5. Exit when momentum dies (close < 10 MA for speed)
 """
 
 import sys
@@ -28,15 +28,16 @@ from alpaca.data.timeframe import TimeFrame
 from trader import Trader
 from config import load_keys
 
-# Risk parameters - BACKTESTED
-# 1 year test: +42% return, 6.8% max DD, 74 trades, 2.92 profit factor
-MAX_POSITIONS = 4        # Up to 4 concurrent positions
-MAX_POSITION_PCT = 0.20  # 20% max position each
-MAX_RISK_PCT = 0.03      # 3% max risk per trade
-ATR_STOP_MULT = 1.5      # Stop at 1.5x ATR
-TRAIL_GIVEBACK = 0.50    # Don't give back more than 50% of gains
-WEEK_MIN = 5             # Minimum 5% weekly gain to enter
-WEEK_MAX = 10            # Maximum 10% weekly gain (don't chase)
+# Risk parameters - AGGRESSIVE
+# Target: maximum daily return using full margin
+MAX_POSITIONS = 3        # Concentrated - fewer, bigger
+MAX_POSITION_PCT = 0.50  # 50% of buying power per position
+MAX_RISK_PCT = 0.05      # 5% portfolio risk per trade
+ATR_STOP_MULT = 1.0      # Tight stop at 1.0x ATR
+TRAIL_GIVEBACK = 0.40    # Don't give back more than 40% of gains
+WEEK_MIN = 3             # Lower entry bar - catch more momentum
+WEEK_MAX = 20            # Don't cap upside - ride the runners
+USE_MARGIN = True        # Use full buying power
 
 
 class EdgeTrader:
@@ -183,28 +184,29 @@ class EdgeTrader:
         return setups
 
     def calculate_position(self, setup: dict) -> dict:
-        """Calculate position size and stops"""
+        """Calculate position size and stops - uses full buying power"""
         account = self.trader.get_account()
         portfolio = account["portfolio_value"]
+        buying_power = account["buying_power"] if USE_MARGIN else account["cash"]
 
         price = setup["price"]
         atr = setup["atr"]
 
-        # Stop distance: 1.5x ATR
+        # Stop distance: tighter ATR stop
         stop_distance = atr * ATR_STOP_MULT
         stop_price = price - stop_distance
         stop_pct = stop_distance / price * 100
 
-        # Risk-based position sizing
-        # Risk = position_size * stop_pct
-        # Max risk = portfolio * MAX_RISK_PCT
-        # position_size = (portfolio * MAX_RISK_PCT) / stop_pct
+        # Risk-based position sizing against EQUITY (not buying power)
         max_risk_dollars = portfolio * MAX_RISK_PCT
         position_value = max_risk_dollars / (stop_pct / 100)
 
-        # Cap at max position size
-        max_position = portfolio * MAX_POSITION_PCT
+        # Cap at max position pct of BUYING POWER (not equity)
+        max_position = buying_power * MAX_POSITION_PCT
         position_value = min(position_value, max_position)
+
+        # Also cap at available buying power
+        position_value = min(position_value, buying_power)
 
         shares = int(position_value / price)
 
@@ -214,10 +216,12 @@ class EdgeTrader:
             "shares": shares,
             "position_value": shares * price,
             "position_pct": (shares * price) / portfolio * 100,
+            "buying_power_pct": (shares * price) / buying_power * 100 if buying_power > 0 else 0,
             "stop_price": stop_price,
             "stop_pct": stop_pct,
             "risk_dollars": shares * stop_distance,
             "risk_pct": (shares * stop_distance) / portfolio * 100,
+            "margin_used": shares * price > account["cash"],
         }
 
     def check_exit(self, symbol: str, entry_price: float, high_water: float) -> dict:
@@ -228,12 +232,13 @@ class EdgeTrader:
 
         current = float(bars[-1].close)
         atr = self.calculate_atr(bars)
+        ma10 = sum(float(bars[i].close) for i in range(-10, 0)) / 10
         ma20 = sum(float(bars[i].close) for i in range(-20, 0)) / 20
 
-        # Initial stop: 1.5x ATR below entry
+        # Initial stop: 1.0x ATR below entry (tight)
         initial_stop = entry_price - (atr * ATR_STOP_MULT)
 
-        # Trailing stop: don't give back more than 50% of gains
+        # Trailing stop: don't give back more than 40% of gains
         if high_water > entry_price:
             gain = high_water - entry_price
             trail_stop = high_water - (gain * TRAIL_GIVEBACK)
@@ -249,10 +254,11 @@ class EdgeTrader:
                 "price": current,
             }
 
-        if current < ma20:
+        # Use 10 MA for faster exit on momentum death
+        if current < ma10:
             return {
                 "exit": True,
-                "reason": f"closed below 20 MA (${ma20:.2f})",
+                "reason": f"closed below 10 MA (${ma10:.2f})",
                 "price": current,
             }
 
@@ -260,6 +266,7 @@ class EdgeTrader:
             "exit": False,
             "current": current,
             "stop": stop_price,
+            "ma10": ma10,
             "ma20": ma20,
             "gain_pct": (current - entry_price) / entry_price * 100,
         }
@@ -291,11 +298,16 @@ def main():
     print("SCANNING FOR SETUPS...")
     print("-" * 60)
 
-    # Expanded universe - backtested on 20 stocks
+    # Aggressive universe - high beta momentum names
     watchlist = [
-        "AMD", "NVDA", "AAPL", "MSFT", "META", "GOOGL", "AMZN", "TSLA",
-        "AVGO", "CRM", "ORCL", "NFLX", "ADBE", "INTC", "QCOM",
-        "MU", "AMAT", "LRCX", "KLAC", "MRVL", "ON",
+        # Mega-cap momentum
+        "NVDA", "META", "TSLA", "AMD", "AVGO", "NFLX", "AMZN", "GOOGL", "AAPL", "MSFT",
+        # Semis (high beta)
+        "MU", "AMAT", "LRCX", "KLAC", "MRVL", "ON", "QCOM", "INTC", "ARM", "SMCI",
+        # High beta tech
+        "CRM", "ORCL", "ADBE", "PLTR", "COIN", "MSTR", "SNOW", "CRWD", "NET",
+        # Energy momentum
+        "XOM", "CVX", "OXY", "SLB", "HAL",
     ]
 
     setups = edge.scan_for_setups(watchlist)
@@ -319,29 +331,33 @@ def main():
     print("\n" + "=" * 60)
     print("RECOMMENDATION")
     print("=" * 60)
+    print(f"\nBuying power: ${account['buying_power']:,.0f} (margin: {account['buying_power']/account['portfolio_value']:.1f}x)")
 
     current_symbols = [p['symbol'] for p in positions]
     available_slots = MAX_POSITIONS - len(positions)
 
     if available_slots > 0 and setups:
-        # Filter out stocks we already own
         new_setups = [s for s in setups if s['symbol'] not in current_symbols]
 
         if new_setups:
-            print(f"\nSlots available: {available_slots}/{MAX_POSITIONS}")
+            print(f"Slots available: {available_slots}/{MAX_POSITIONS}")
+            total_deploy = 0
             for setup in new_setups[:available_slots]:
                 pos = edge.calculate_position(setup)
-                print(f"\nBUY: {setup['symbol']} (score: {setup['score']})")
-                print(f"  Entry: ${setup['price']:.2f}")
-                print(f"  Shares: {pos['shares']}")
-                print(f"  Stop: ${pos['stop_price']:.2f}")
-                print(f"  Risk: ${pos['risk_dollars']:.0f} ({pos['risk_pct']:.1f}%)")
+                total_deploy += pos['position_value']
+                margin_tag = " [MARGIN]" if pos.get('margin_used') else ""
+                print(f"\n  BUY: {setup['symbol']} (score: {setup['score']})")
+                print(f"    Entry: ${setup['price']:.2f}")
+                print(f"    Shares: {pos['shares']} (${pos['position_value']:,.0f} = {pos['position_pct']:.0f}% equity){margin_tag}")
+                print(f"    Stop: ${pos['stop_price']:.2f} ({pos['stop_pct']:.1f}%)")
+                print(f"    Risk: ${pos['risk_dollars']:.0f} ({pos['risk_pct']:.1f}% of equity)")
+            print(f"\n  Total new deployment: ${total_deploy:,.0f}")
         else:
-            print("\nNo new setups. Current positions are best opportunities.")
+            print("\nNo new setups. Hold current positions.")
     elif len(positions) >= MAX_POSITIONS:
-        print(f"\nFully invested ({MAX_POSITIONS} positions). Monitor for exits.")
+        print(f"\nFully loaded ({MAX_POSITIONS} positions). Monitor for exits.")
     else:
-        print("\nNo setups meeting criteria. Wait.")
+        print("\nNo setups meeting criteria. Scanning again at next interval.")
 
 
 if __name__ == "__main__":

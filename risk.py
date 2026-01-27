@@ -3,10 +3,10 @@
 risk.py - risk management
 
 Rules:
-1. Max 5% portfolio per position
-2. Max 20% total exposure
-3. Stop loss at 3% per position
-4. Take profit at 10% per position
+1. Max 50% of buying power per position
+2. Max 150% total exposure (using margin)
+3. Stop loss at 5% per position
+4. Take profit: let it run (no cap)
 """
 
 import sys
@@ -24,10 +24,10 @@ class RiskManager:
 
     def __init__(
         self,
-        max_position_pct: float = 0.05,   # 5% max per position
-        max_exposure_pct: float = 0.20,   # 20% max total exposure
-        stop_loss_pct: float = 0.03,      # 3% stop loss
-        take_profit_pct: float = 0.10,    # 10% take profit
+        max_position_pct: float = 0.50,   # 50% of buying power per position
+        max_exposure_pct: float = 1.50,   # 150% exposure (using margin)
+        stop_loss_pct: float = 0.05,      # 5% stop loss
+        take_profit_pct: float = 0.50,    # 50% take profit (let it run)
     ):
         self.trader = Trader()
         self.max_position_pct = max_position_pct
