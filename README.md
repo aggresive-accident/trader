@@ -1,115 +1,170 @@
-# trader
+# Trader
 
-My interface to the market. Paper trading via Alpaca.
+Automated multi-strategy paper trading system on Alpaca. $100k paper account.
 
-## The Edge
+Two parallel tracks:
+- **Strategy Zoo**: rules-based strategies (momentum, bollinger) running on autopilot via systemd timer
+- **Thesis Trades**: discretionary positions managed manually via `thesis_execute.py`
+- **Cross-Sectional Research**: factor backtesting across 200 S&P 500 names (offline, not live)
 
-**Buy the strongest momentum stock on a pullback, stop below ATR, let it run.**
+## Architecture
 
-Backtested over 1 year:
+```
+                    ┌─────────────────────────────────────┐
+                    │           Alpaca Paper API           │
+                    └──────┬──────────────┬───────────────┘
+                           │              │
+              ┌────────────┴──┐    ┌──────┴───────────┐
+              │  autopilot.py │    │ thesis_execute.py │
+              │  (systemd 5m) │    │  (manual/claude)  │
+              └──┬────┬───┬──┘    └──────────────────┘
+                 │    │   │
+      ┌──────────┘    │   └──────────┐
+      │               │              │
+ ┌────┴────┐   ┌──────┴──────┐  ┌───┴───────┐
+ │router.py│   │  ledger.py  │  │ config.py │
+ │ scans   │   │  ownership  │  │ API keys  │
+ └────┬────┘   └─────────────┘  └───────────┘
+      │
+ ┌────┴──────────────┐
+ │    strategies/     │
+ │ momentum.py        │
+ │ mean_reversion.py  │
+ │ adaptive.py  ...   │
+ └────────────────────┘
 
-| Metric | Result |
-|--------|--------|
-| Return | +42% |
-| Max Drawdown | 6.8% |
-| Trades | 74 |
-| Win Rate | 47% |
-| Profit Factor | 2.92 |
-| Alpha vs Buy-Hold | +5.3% |
+Offline research:
+ ┌──────────────┐   ┌───────────────────┐   ┌──────────────────┐
+ │ bar_cache.py │──>│ cross_backtest.py │──>│ run_grid_test.py │
+ │ 201 parquets │   │ factor framework  │   │ run_walkforward  │
+ └──────────────┘   └───────────────────┘   └──────────────────┘
+```
 
-## Entry Criteria
-
-- Weekly return 5-10% (momentum, not overextended)
-- Price above 20 MA
-- Volume confirmation (>1.3x average)
-
-## Exit Criteria
-
-- Stop hit (1.5x ATR below entry)
-- Close below 20 MA
-- Trailing stop (gave back 50% of gains)
-
-## Position Sizing
-
-- Max 4 concurrent positions
-- Max 20% per position
-- Max 3% portfolio risk per trade
-
-## Morning Routine
+## Quick Start
 
 ```bash
-python3 morning.py  # Full pre-market checklist
+# Check current state
+python3 trader.py status              # account + positions
+python3 autopilot.py status           # last run, trades today
+python3 thesis_execute.py status      # thesis positions
+
+# View logs
+tail -50 autopilot.log                # recent autopilot output
+tail -20 autopilot_trades.jsonl       # recent trades
+
+# Run autopilot manually (normally runs via timer)
+python3 autopilot.py run              # live execution
+python3 autopilot.py run --dry-run    # log only, no orders
+
+# Systemd timer control
+systemctl --user status trader-monitor.timer   # is it running?
+systemctl --user stop trader-monitor.timer     # pause
+systemctl --user start trader-monitor.timer    # resume
+
+# Strategic context (full state dump)
+python3 state_export.py --stdout      # print to terminal
+python3 state_export.py               # write to state/strategic_context.md
 ```
 
-Runs in sequence:
-1. Gap scanner - overnight moves
-2. Market regime - trend/volatility
-3. Edge signals - entry opportunities
-4. Position monitor - exit signals
+## File Structure
 
-## Core Scripts
+### Core Trading
 
-| Script | Purpose |
-|--------|---------|
-| `edge.py` | Core system - scan and calculate positions |
-| `execute.py` | Trade execution with journaling |
-| `monitor.py` | Position monitoring with trailing stops |
-| `premarket.py` | Gap scanner |
-| `alerts.py` | Signal change notifications |
-| `analytics.py` | Performance vs backtest |
-| `market_report.py` | Market regime analysis |
-| `morning.py` | Pre-market checklist |
+| File | Purpose |
+|------|---------|
+| `autopilot.py` | Main trading loop. Runs every 5 min via systemd. Phase 1: exit checks. Phase 2: entry scans. |
+| `router.py` | Strategy scanner. Loads active strategies, fetches bars, returns attributed signals. |
+| `router_config.json` | Zoo configuration: active strategies, allocation, symbols, exit params, exclusions. |
+| `ledger.py` | Position ownership. Tracks which strategy owns which position. Persists to `trades_ledger.json`. |
+| `trader.py` | Low-level Alpaca API wrapper. Positions, account, quotes, orders. |
+| `config.py` | API key loader. Reads `~/.alpaca-keys`. |
+| `monitor.py` | High water mark tracking for trailing stops. |
+| `thesis_execute.py` | Manual thesis trade execution. Buy/sell/status with `--confirm` flag. |
+| `thesis_trades.json` | Thesis trade state: entries, targets, invalidation, outcomes. |
 
-## Trade Execution
+### Strategies
 
-```bash
-# Dry run (default)
-python3 execute.py
+| File | Strategy | Description |
+|------|----------|-------------|
+| `strategies/momentum.py` | SimpleMomentum | 20-day return breakout |
+| `strategies/mean_reversion.py` | BollingerReversion | Bollinger band mean reversion |
+| `strategies/adaptive.py` | AdaptiveStrategy | Regime-aware (disabled in zoo) |
+| `strategies/base.py` | Strategy base class | `signal(bars, idx) -> Signal(strength, reason, confidence)` |
 
-# Live execution
-python3 execute.py --execute
+### Research / Backtesting
 
-# Manual trade
-python3 execute.py --execute --symbol META --action buy --shares 30
+| File | Purpose |
+|------|---------|
+| `bar_cache.py` | Parquet cache for historical bars. 201 symbols, 2022-present. |
+| `cross_backtest.py` | Cross-sectional factor backtester with persistence bands. |
+| `run_grid_test.py` | 5 factors x 4 turnover configs grid search. |
+| `run_walkforward.py` | Walk-forward validation + regime-switch test. |
+| `backtest_strategies.py` | Per-strategy backtest with configurable exits. |
+| `state_export.py` | Generates `state/strategic_context.md` with full system state. |
+
+### State & Logs
+
+| File | Format | Written By |
+|------|--------|-----------|
+| `autopilot.log` | Text log | `autopilot.py` (every run) |
+| `autopilot_state.json` | JSON | `autopilot.py` (trades today, stopped out list) |
+| `autopilot_trades.jsonl` | JSONL | `autopilot.py` (every trade) |
+| `trades_ledger.json` | JSON | `ledger.py` (position ownership + trade history) |
+| `high_water_marks.json` | JSON | `monitor.py` (peak prices for trailing stops) |
+| `thesis_trades.json` | JSON | `thesis_execute.py` (discretionary trades) |
+| `thesis_trades.log` | Text log | `thesis_execute.py` (execution log) |
+| `data/bars/*.parquet` | Parquet | `bar_cache.py` (historical OHLCV) |
+
+### Results
+
+| File | Contents |
+|------|----------|
+| `grid_results.json` | Factor grid search: 20 combos ranked by OOS Sharpe |
+| `walkforward_results.json` | Walk-forward + regime switch metrics |
+| `cross_backtest_momentum.json` | Cross-sectional momentum IS/OOS/full results |
+| `backtest_signal_exit.json` | Signal vs stop exit comparison |
+| `backtest_blend.json` | 50/50 momentum+bollinger blend |
+
+## Key Concepts
+
+### Zoo vs Thesis Trades
+
+**Zoo** (`autopilot.py` + `router.py`): Rules-based, automated. Strategies generate signals, autopilot executes. Every position is attributed to a strategy via the ledger. Runs unattended.
+
+**Thesis** (`thesis_execute.py` + `thesis_trades.json`): Discretionary, manual. Human or Claude decides entry/exit based on a stated thesis with explicit invalidation criteria. Completely separate from autopilot. Protected by the `exclusions` list in `router_config.json`.
+
+### Signal-Exit Mode
+
+ATR stop-based exits were proven to destroy all edge (PF 0.49 over 4 years). The zoo now uses signal-based exits:
+- Exit when `strategy.signal()` returns negative strength
+- Hard exit at `max_hold_days` (20 days)
+- No broker stop orders placed
+- Configured via `exit_defaults.exit_mode: "signal"` in `router_config.json`
+
+### Ledger Ownership
+
+Every zoo position is owned by exactly one strategy. `ledger.py` enforces single-strategy ownership per symbol. On every autopilot run, `reconcile_ledger()` syncs the ledger against Alpaca's actual positions. Orphan positions (manual buys, crashes) get imported as strategy "unknown" -- unless excluded.
+
+### Exclusions
+
+`router_config.json.exclusions` is a list of symbols invisible to autopilot. Excluded symbols are skipped in:
+1. Reconciliation (won't import into ledger)
+2. Phase 1 exit checks (won't evaluate or trade)
+3. Phase 2 entry scans (won't buy)
+4. Position counting (don't consume zoo slots)
+
+## Secrets
+
+API keys live in `~/.alpaca-keys`:
+```
+ALPACA_API_KEY=...
+ALPACA_SECRET_KEY=...
 ```
 
-## Monitoring
+Paper trading only. No real money.
 
-```bash
-python3 monitor.py           # Check positions
-python3 alerts.py check      # New signals
-python3 alerts.py history    # Alert log
-python3 analytics.py         # Performance review
-```
+## Other Docs
 
-## Setup
-
-API keys in `~/.alpaca-keys` (chmod 600):
-```
-APCA_API_KEY_ID=your_key
-APCA_API_SECRET_KEY=your_secret
-```
-
-## Files
-
-- `trades.json` - Trade journal
-- `alerts_log.json` - Alert history
-- `high_water_marks.json` - Trailing stop tracking
-
-## Rules
-
-1. One trade per slot (max 4)
-2. No averaging down
-3. If stopped out, done for the day
-4. Journal every decision
-
-## Strategy Zoo
-
-`strategies/` contains 21 strategies for research/validation. The actual edge uses only momentum concentration in `edge.py`.
-
-## Notes
-
-- Paper trading only ($100k account)
-- Uses IEX data feed
-- Integrated with organism (market_eye.py)
-- Trades logged to relay for continuity
+- [THESIS_TRADES.md](THESIS_TRADES.md) - Discretionary trade management
+- [STRATEGY_ZOO.md](STRATEGY_ZOO.md) - Strategy configuration and backtests
+- [CROSS_SECTIONAL.md](CROSS_SECTIONAL.md) - Factor research framework
