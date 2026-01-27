@@ -35,15 +35,10 @@ if [ "$HOUR" -eq 9 ] && [ "$MIN" -lt 30 ]; then
     exit 0
 fi
 
-# Run monitor
-LOG=~/.trader-monitor.log
-echo "--- $(date) ---" >> $LOG
-python3 monitor.py --quiet >> $LOG 2>&1
+# Run autopilot (monitors exits, places stops, enters new positions)
+python3 autopilot.py run 2>&1
 
-# If there were alerts, also log to relay
-if grep -q "EXIT SIGNAL\|WARNING\|ACTION REQUIRED" $LOG; then
-    ALERT=$(tail -20 $LOG | grep -E "EXIT SIGNAL|WARNING|ACTION REQUIRED" | head -1)
-    if [ -n "$ALERT" ]; then
-        python3 ~/workspace/relay/relay.py "TRADER ALERT: $ALERT" 2>/dev/null || true
-    fi
+# Reset daily state at market open
+if [ "$HOUR" -eq 9 ] && [ "$MIN" -lt 35 ]; then
+    python3 autopilot.py reset 2>&1
 fi
