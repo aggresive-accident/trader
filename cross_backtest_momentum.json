@@ -1,0 +1,47 @@
+{
+  "generated": "2026-01-27T20:34:59.371730",
+  "results": [
+    {
+      "name": "XS momentum top-10 [IN-SAMPLE 2022-2023]",
+      "period": "2022-01-03 to 2023-12-29",
+      "total_return": 10.33,
+      "annual_return": 5.07,
+      "sharpe": 0.333,
+      "max_drawdown": 31.03,
+      "profit_factor": 1.104,
+      "num_trades": 513,
+      "win_rate": 48.5,
+      "avg_trade_pnl": 20.14,
+      "turnover_pct": 98.1,
+      "spy_return": -0.21
+    },
+    {
+      "name": "XS momentum top-10 [OUT-OF-SAMPLE 2024-2025]",
+      "period": "2024-01-02 to 2025-12-31",
+      "total_return": 41.13,
+      "annual_return": 18.92,
+      "sharpe": 0.895,
+      "max_drawdown": 27.25,
+      "profit_factor": 1.388,
+      "num_trades": 497,
+      "win_rate": 50.3,
+      "avg_trade_pnl": 82.75,
+      "turnover_pct": 94.2,
+      "spy_return": 45.35
+    },
+    {
+      "name": "XS momentum top-10 [FULL 2022-2025]",
+      "period": "2022-01-03 to 2025-12-31",
+      "total_return": -0.99,
+      "annual_return": -0.25,
+      "sharpe": 0.101,
+      "max_drawdown": 35.68,
+      "profit_factor": 1.044,
+      "num_trades": 1008,
+      "win_rate": 49.7,
+      "avg_trade_pnl": 9.41,
+      "turnover_pct": 97.0,
+      "spy_return": 43.81
+    }
+  ]
+}

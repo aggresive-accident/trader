@@ -368,14 +368,17 @@ def buy_position(client: TradingClient, ledger: Ledger, symbol: str,
 
 # === Reconciliation ===
 
-def reconcile_ledger(trader: Trader, ledger: Ledger):
+def reconcile_ledger(trader: Trader, ledger: Ledger, exclusions: set = None):
     """
     Ensure ledger matches Alpaca's actual positions.
 
     Handles:
     - Positions in Alpaca but not in ledger (orphans from crashes/manual trades)
     - Positions in ledger but not in Alpaca (stale from external sells)
+
+    Excluded symbols (thesis/manual trades) are ignored entirely.
     """
+    exclusions = exclusions or set()
     alpaca_positions = trader.get_positions()
     alpaca_symbols = {p["symbol"] for p in alpaca_positions}
     ledger_symbols = set(ledger.positions.keys())
@@ -383,6 +386,9 @@ def reconcile_ledger(trader: Trader, ledger: Ledger):
     # Orphans: in Alpaca but not in ledger
     for p in alpaca_positions:
         sym = p["symbol"]
+        if sym in exclusions:
+            log.info(f"RECONCILE: {sym} excluded (thesis/manual) - skipping")
+            continue
         if sym not in ledger_symbols:
             log.warning(f"RECONCILE: {sym} in Alpaca but not in ledger. Importing as 'unknown'.")
             try:
@@ -395,7 +401,7 @@ def reconcile_ledger(trader: Trader, ledger: Ledger):
                 log.error(f"RECONCILE: Failed to import {sym}: {e}")
 
     # Stale: in ledger but not in Alpaca
-    for sym in ledger_symbols - alpaca_symbols:
+    for sym in ledger_symbols - alpaca_symbols - exclusions:
         pos = ledger.positions[sym]
         log.warning(f"RECONCILE: {sym} in ledger [{pos.strategy}] but not in Alpaca. Closing.")
         try:
@@ -430,6 +436,9 @@ def run():
     data_client = StockHistoricalDataClient(k, s)
 
     max_positions = config.get("max_positions", 4)
+    exclusions = set(config.get("exclusions", []))
+    if exclusions:
+        log.info(f"Exclusions (thesis/manual): {', '.join(sorted(exclusions))}")
 
     # Check market
     clock = trader.get_clock()
@@ -439,7 +448,7 @@ def run():
         return
 
     # Reconcile ledger against Alpaca before doing anything
-    reconcile_ledger(trader, ledger)
+    reconcile_ledger(trader, ledger, exclusions)
     # Reload ledger after reconciliation
     ledger = Ledger()
 
@@ -449,6 +458,10 @@ def run():
 
     for p in positions:
         symbol = p["symbol"]
+        if symbol in exclusions:
+            log.info(f"{symbol}: excluded (thesis/manual) - skipping exit check")
+            continue
+
         entry_price = p["avg_entry"]
         current_price = p["current_price"]
         qty = float(p["qty"])
@@ -497,13 +510,14 @@ def run():
     # === PHASE 2: CHECK ENTRIES ===
     positions = trader.get_positions()
     current_symbols = [p["symbol"] for p in positions]
-    available_slots = max_positions - len(positions)
+    managed_count = sum(1 for p in positions if p["symbol"] not in exclusions)
+    available_slots = max_positions - managed_count
 
     if available_slots > 0:
         log.info(f"--- Phase 2: Entry scan ({available_slots} slots) ---")
 
-        # Don't re-enter stocks we got stopped out of today
-        blocked = set(state.get("stopped_out", []))
+        # Don't re-enter stocks we got stopped out of today, or excluded symbols
+        blocked = set(state.get("stopped_out", [])) | exclusions
 
         # Scan via router - returns strategy-attributed signals
         signals = router.get_entry_signals()

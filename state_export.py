@@ -280,6 +280,50 @@ def section_backtests():
 
 
 @section
+def section_thesis_trades():
+    data = _load_json(BASE / "thesis_trades.json")
+    if not data or not data.get("trades"):
+        return "Thesis Trades", "_No thesis trades._"
+
+    lines = []
+    lines.append("_Discretionary trades managed separately from autopilot/strategy zoo._\n")
+
+    for t in data["trades"]:
+        status = t.get("status", "?").upper()
+        sym = t.get("symbol", "?")
+        entry = t.get("entry", {})
+        thesis = t.get("thesis", {})
+        inv = t.get("invalidation", {})
+        targets = t.get("targets", [])
+        outcome = t.get("outcome", {})
+
+        lines.append(f"### {sym} [{status}]\n")
+        lines.append(f"- **Entry:** {entry.get('date', '?')} | "
+                     f"{entry.get('shares', '?')} shares @ ${entry.get('price') or 'pending'} | "
+                     f"${entry.get('notional', '?'):,}")
+        lines.append(f"- **Thesis:** {thesis.get('summary', 'none')}")
+        lines.append(f"- **Invalidation:** close below ${inv.get('price_below', '?')} OR "
+                     f"{inv.get('time_condition', '?')} (by {inv.get('time_deadline', '?')})")
+
+        if targets:
+            target_strs = []
+            for tgt in targets:
+                hit = " ✓" if tgt.get("hit") else ""
+                price = f"${tgt['price']:.0f}" if tgt.get("price") else "hold"
+                target_strs.append(f"{tgt['label']}: {price} (trim {tgt['trim_pct']}%){hit}")
+            lines.append(f"- **Targets:** {' | '.join(target_strs)}")
+
+        if outcome.get("realized_pnl"):
+            lines.append(f"- **Realized P/L:** ${outcome['realized_pnl']:+,.2f}")
+        if outcome.get("thesis_correct") is not None:
+            lines.append(f"- **Thesis correct:** {outcome['thesis_correct']}")
+
+        lines.append("")
+
+    return "Thesis Trades", "\n".join(lines)
+
+
+@section
 def section_recent_activity():
     lines = []
 

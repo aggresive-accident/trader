@@ -16,5 +16,6 @@
     "profit_giveback_pct": 0,
     "ma_exit_period": null
   },
-  "exit_overrides": {}
+  "exit_overrides": {},
+  "exclusions": ["GME"]
 }
