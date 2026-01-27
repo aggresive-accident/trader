@@ -305,6 +305,48 @@ def buy_position(client: TradingClient, ledger: Ledger, symbol: str,
         return False
 
 
+# === Reconciliation ===
+
+def reconcile_ledger(trader: Trader, ledger: Ledger):
+    """
+    Ensure ledger matches Alpaca's actual positions.
+
+    Handles:
+    - Positions in Alpaca but not in ledger (orphans from crashes/manual trades)
+    - Positions in ledger but not in Alpaca (stale from external sells)
+    """
+    alpaca_positions = trader.get_positions()
+    alpaca_symbols = {p["symbol"] for p in alpaca_positions}
+    ledger_symbols = set(ledger.positions.keys())
+
+    # Orphans: in Alpaca but not in ledger
+    for p in alpaca_positions:
+        sym = p["symbol"]
+        if sym not in ledger_symbols:
+            log.warning(f"RECONCILE: {sym} in Alpaca but not in ledger. Importing as 'unknown'.")
+            try:
+                ledger.record_buy(
+                    sym, float(p["qty"]), p["avg_entry"],
+                    strategy="unknown",
+                    reason="reconciled from Alpaca (orphan)",
+                )
+            except ValueError as e:
+                log.error(f"RECONCILE: Failed to import {sym}: {e}")
+
+    # Stale: in ledger but not in Alpaca
+    for sym in ledger_symbols - alpaca_symbols:
+        pos = ledger.positions[sym]
+        log.warning(f"RECONCILE: {sym} in ledger [{pos.strategy}] but not in Alpaca. Closing.")
+        try:
+            # Use entry price as close price (we don't know the real exit price)
+            ledger.record_sell(
+                sym, pos.qty, pos.avg_entry,
+                reason="reconciled: position not found in Alpaca",
+            )
+        except ValueError as e:
+            log.error(f"RECONCILE: Failed to close {sym}: {e}")
+
+
 # === Main autopilot ===
 
 def run():
@@ -331,6 +373,11 @@ def run():
         log.info("Market closed. Exiting.")
         save_state(state)
         return
+
+    # Reconcile ledger against Alpaca before doing anything
+    reconcile_ledger(trader, ledger)
+    # Reload ledger after reconciliation
+    ledger = Ledger()
 
     # === PHASE 1: CHECK EXITS ===
     log.info("--- Phase 1: Exit checks ---")
