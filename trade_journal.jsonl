@@ -1,3 +1,4 @@
 {"timestamp": "2026-01-24T13:35:52.735454", "action": "NOTE", "symbol": "AMD", "qty": null, "price": null, "reason": "strong momentum, considering entry", "signals": {}}
 {"timestamp": "2026-01-26T15:12:56.563944", "action": "BUY", "symbol": "META", "qty": 30.0, "price": 666.92, "reason": "Edge score 4. Weekly +6.1%, above MAs, 1.7x vol. Stop 632.45", "signals": {}}
 {"timestamp": "2026-01-26T19:32:02.805299", "action": "BUY", "symbol": "XOM", "qty": 100.0, "price": 135.01, "reason": "Donchian breakout, diversify from tech. Stop 130.54", "signals": {}}
+{"timestamp": "2026-01-27T14:41:38.151441", "action": "BUY", "symbol": "AMD", "qty": 130.0, "price": 251.4, "reason": "8/9 STRONG BUY. MAs stacked bullish, buying -3.2% pullback in strong uptrend. Stop at 240.", "signals": {}}

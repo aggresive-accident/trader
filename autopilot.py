@@ -3,11 +3,14 @@
 autopilot.py - fully automated multi-strategy trading
 
 Runs the strategy router end-to-end:
-1. Check positions for exit signals (strategy-keyed exit params)
-2. Cancel stale stop orders, place fresh ones
-3. If slots open, scan via StrategyRouter for entries
-4. Record all trades in ledger with strategy attribution
-5. Log everything
+1. Check positions for exit signals (signal-based or stop-based, per strategy config)
+2. If slots open, scan via StrategyRouter for entries
+3. Record all trades in ledger with strategy attribution
+4. Log everything
+
+Exit modes:
+  - "signal": exit on strategy.signal() < 0 OR max_hold_days exceeded. No broker stops.
+  - "stops": exit on ATR stop / trailing / MA cross. Places broker stop orders.
 
 Run via systemd timer every 5 minutes during market hours.
 """
@@ -112,19 +115,22 @@ def fetch_bars(data_client: StockHistoricalDataClient, symbol: str, days: int = 
 
 # === Parameterized exit check ===
 
-def check_exit(bars: list, entry_price: float, high_water: float, exit_params: dict) -> dict:
+def check_exit(bars: list, entry_price: float, high_water: float,
+               exit_params: dict, strategy_obj=None, entry_date: str = None) -> dict:
     """
     Check if a position should be exited using strategy-specific parameters.
+
+    Two modes:
+      exit_mode == "signal": use strategy.signal() + max_hold_days. No broker stops.
+      exit_mode == "stops":  use ATR stop / trailing / MA cross. Places broker stops.
 
     Args:
         bars: Historical bar data for the symbol
         entry_price: Average entry price
         high_water: Peak price since entry
-        exit_params: Strategy-keyed exit configuration:
-            stop_atr_multiplier: ATR multiplier for initial stop
-            trailing_stop_enabled: Whether to use trailing stop
-            profit_giveback_pct: Max fraction of gains to give back (if trailing)
-            ma_exit_period: MA period for trend exit (None to disable)
+        exit_params: Strategy-keyed exit configuration
+        strategy_obj: Strategy instance (required for signal mode)
+        entry_date: ISO date string of position open (for max_hold_days)
 
     Returns:
         dict with exit signal, stop price, and diagnostics
@@ -133,6 +139,51 @@ def check_exit(bars: list, entry_price: float, high_water: float, exit_params: d
         return {"exit": False, "reason": "insufficient data", "stop": None, "ma": None}
 
     current = float(bars[-1].close)
+    exit_mode = exit_params.get("exit_mode", "stops")
+    max_hold_days = exit_params.get("max_hold_days", 0)
+
+    # === Max hold days check (applies to ALL modes, hard limit) ===
+    days_held = 0
+    if entry_date and max_hold_days > 0:
+        try:
+            opened = datetime.fromisoformat(entry_date)
+            days_held = (datetime.now() - opened).days
+            if days_held >= max_hold_days:
+                return {
+                    "exit": True,
+                    "reason": f"max hold {max_hold_days}d reached (held {days_held}d)",
+                    "price": current,
+                }
+        except (ValueError, TypeError):
+            pass
+
+    # === Signal-based exit mode ===
+    if exit_mode == "signal":
+        if strategy_obj is None:
+            return {"exit": False, "reason": "signal mode but no strategy object",
+                    "stop": None, "ma": None, "days_held": days_held}
+
+        try:
+            sig = strategy_obj.signal(bars, len(bars) - 1)
+            if sig.strength < 0:
+                return {
+                    "exit": True,
+                    "reason": f"signal exit: strength={sig.strength:+.2f}, {sig.reason}",
+                    "price": current,
+                }
+        except Exception as e:
+            log.warning(f"Signal evaluation failed: {e}")
+
+        return {
+            "exit": False,
+            "current": current,
+            "stop": None,  # no broker stop in signal mode
+            "ma": None,
+            "days_held": days_held,
+            "gain_pct": (current - entry_price) / entry_price * 100,
+        }
+
+    # === Stop-based exit mode (legacy) ===
     atr = calculate_atr(bars)
     if atr <= 0:
         return {"exit": False, "reason": "no ATR", "stop": None, "ma": None}
@@ -177,6 +228,7 @@ def check_exit(bars: list, entry_price: float, high_water: float, exit_params: d
         "stop": stop_price,
         "ma": ma_value,
         "atr": atr,
+        "days_held": days_held,
         "gain_pct": (current - entry_price) / entry_price * 100,
     }
 
@@ -247,6 +299,9 @@ def sell_position(client: TradingClient, ledger: Ledger, symbol: str,
                   qty: float, price: float, reason: str, strategy: str) -> bool:
     """Market sell a position and record in ledger."""
     try:
+        if DRY_RUN:
+            log.info(f"[DRY RUN] Would SELL {qty} {symbol} @ ~${price:.2f} [{strategy}] - {reason}")
+            return False
         cancel_existing_stops(client, symbol)
         order = MarketOrderRequest(
             symbol=symbol,
@@ -273,9 +328,12 @@ def sell_position(client: TradingClient, ledger: Ledger, symbol: str,
 
 def buy_position(client: TradingClient, ledger: Ledger, symbol: str,
                  qty: int, price: float, stop_price: float,
-                 reason: str, strategy: str) -> bool:
-    """Market buy, record in ledger, and place stop."""
+                 reason: str, strategy: str, exit_mode: str = "stops") -> bool:
+    """Market buy, record in ledger, and optionally place broker stop."""
     try:
+        if DRY_RUN:
+            log.info(f"[DRY RUN] Would BUY {qty} {symbol} @ ~${price:.2f} [{strategy}] exit_mode={exit_mode}")
+            return False
         # Cancel any existing stops for this symbol first (prevents wash trade rejection)
         cancel_existing_stops(client, symbol)
 
@@ -297,8 +355,11 @@ def buy_position(client: TradingClient, ledger: Ledger, symbol: str,
         log_trade_entry("BUY", symbol, qty, price, reason, strategy)
         log.info(f"BOUGHT {qty} {symbol} [{strategy}] (order {result.id})")
 
-        # Place stop
-        place_stop(client, symbol, qty, stop_price)
+        # Place broker stop only in stop mode
+        if exit_mode != "signal":
+            place_stop(client, symbol, qty, stop_price)
+        else:
+            log.info(f"Signal mode: no broker stop for {symbol}")
         return True
     except Exception as e:
         log.error(f"Failed to buy {symbol}: {e}")
@@ -349,10 +410,13 @@ def reconcile_ledger(trader: Trader, ledger: Ledger):
 
 # === Main autopilot ===
 
+DRY_RUN = False  # Set via --dry-run flag
+
+
 def run():
     """Main autopilot loop - one pass."""
     log.info("=" * 50)
-    log.info("AUTOPILOT RUN (multi-strategy)")
+    log.info(f"AUTOPILOT RUN (multi-strategy){' [DRY RUN]' if DRY_RUN else ''}")
     log.info("=" * 50)
 
     state = load_state()
@@ -394,13 +458,22 @@ def run():
 
         # Get strategy-specific exit params
         exit_params = get_exit_params(config, strategy)
+        exit_mode = exit_params.get("exit_mode", "stops")
+
+        # Get strategy object for signal-mode evaluation
+        strategy_obj = router.strategies.get(strategy)
+
+        # Get entry date from ledger
+        ledger_pos = ledger.get_position(symbol)
+        entry_date = ledger_pos.opened_at if ledger_pos else None
 
         # Update high water mark
         high_water = update_high_water(symbol, current_price)
 
         # Fetch bars and check exit
         bars = fetch_bars(data_client, symbol)
-        result = check_exit(bars, entry_price, high_water, exit_params)
+        result = check_exit(bars, entry_price, high_water, exit_params,
+                            strategy_obj=strategy_obj, entry_date=entry_date)
 
         if result["exit"]:
             log.warning(f"EXIT SIGNAL for {symbol} [{strategy}]: {result['reason']}")
@@ -410,14 +483,14 @@ def run():
                 state.setdefault("stopped_out", []).append(symbol)
                 state["trades_today"] = state.get("trades_today", 0) + 1
         else:
+            days_str = f"d{result.get('days_held', '?')}" if exit_mode == "signal" else ""
             stop_str = f"${result['stop']:.2f}" if result.get("stop") else "N/A"
             ma_str = f"${result['ma']:.2f}" if result.get("ma") else "off"
             log.info(f"{symbol} [{strategy}]: OK (P/L: {p['unrealized_pl_pct']:+.1f}%, "
-                     f"stop: {stop_str}, MA: {ma_str}, "
-                     f"ATR×{exit_params['stop_atr_multiplier']})")
+                     f"mode: {exit_mode}, stop: {stop_str}, MA: {ma_str} {days_str})")
 
-            # Refresh broker stop orders
-            if result.get("stop"):
+            # Refresh broker stop orders ONLY in stop mode
+            if exit_mode != "signal" and result.get("stop"):
                 cancel_existing_stops(client, symbol)
                 place_stop(client, symbol, qty, result["stop"])
 
@@ -457,18 +530,24 @@ def run():
 
                 # Calculate stop using this strategy's exit params
                 exit_params = get_exit_params(config, sig.strategy)
-                bars = fetch_bars(data_client, sig.symbol)
-                atr = calculate_atr(bars) if bars and len(bars) > 15 else 0
-                stop_price = price - (atr * exit_params["stop_atr_multiplier"]) if atr > 0 else price * 0.95
+                exit_mode = exit_params.get("exit_mode", "stops")
 
-                log.info(f"ENTRY: {sig.symbol} [{sig.strategy}] str={sig.strength:+.2f} | "
-                         f"{shares} shares @ ${price:.2f} | stop ${stop_price:.2f} "
-                         f"(ATR×{exit_params['stop_atr_multiplier']})")
+                if exit_mode == "signal":
+                    stop_price = 0  # no broker stop
+                    log.info(f"ENTRY: {sig.symbol} [{sig.strategy}] str={sig.strength:+.2f} | "
+                             f"{shares} shares @ ${price:.2f} | signal mode (no stop)")
+                else:
+                    bars = fetch_bars(data_client, sig.symbol)
+                    atr = calculate_atr(bars) if bars and len(bars) > 15 else 0
+                    stop_price = price - (atr * exit_params["stop_atr_multiplier"]) if atr > 0 else price * 0.95
+                    log.info(f"ENTRY: {sig.symbol} [{sig.strategy}] str={sig.strength:+.2f} | "
+                             f"{shares} shares @ ${price:.2f} | stop ${stop_price:.2f} "
+                             f"(ATR×{exit_params['stop_atr_multiplier']})")
 
                 bought = buy_position(
                     client, ledger, sig.symbol, shares, price, stop_price,
                     f"Router entry: {sig.strategy} str={sig.strength:+.2f}, {sig.reason}",
-                    sig.strategy,
+                    sig.strategy, exit_mode=exit_mode,
                 )
                 if bought:
                     state["trades_today"] = state.get("trades_today", 0) + 1
@@ -512,7 +591,11 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Autopilot trading (multi-strategy)")
     parser.add_argument("command", nargs="?", default="run", choices=["run", "reset", "status"])
+    parser.add_argument("--dry-run", action="store_true", help="Log actions without executing trades")
     args = parser.parse_args()
+
+    if args.dry_run:
+        DRY_RUN = True
 
     if args.command == "run":
         run()

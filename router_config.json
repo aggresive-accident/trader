@@ -1,33 +1,20 @@
 {
-  "active_strategies": ["momentum", "bollinger", "adaptive"],
+  "active_strategies": ["momentum", "bollinger"],
   "allocation": {
-    "momentum": 0.40,
-    "bollinger": 0.35,
-    "adaptive": 0.25
+    "momentum": 0.50,
+    "bollinger": 0.50
   },
   "symbols": ["META", "NVDA", "AMD", "GOOGL", "AAPL", "MSFT", "AMZN", "XOM", "XLE", "TSLA"],
   "max_positions": 4,
   "risk_per_trade": 0.03,
   "total_capital": 100000,
   "exit_defaults": {
-    "stop_atr_multiplier": 1.5,
-    "trailing_stop_enabled": true,
-    "profit_giveback_pct": 0.4,
-    "ma_exit_period": 10
+    "exit_mode": "signal",
+    "max_hold_days": 20,
+    "stop_atr_multiplier": 0,
+    "trailing_stop_enabled": false,
+    "profit_giveback_pct": 0,
+    "ma_exit_period": null
   },
-  "exit_overrides": {
-    "momentum": {
-      "stop_atr_multiplier": 2.0,
-      "ma_exit_period": 10
-    },
-    "bollinger": {
-      "stop_atr_multiplier": 1.5,
-      "trailing_stop_enabled": false,
-      "ma_exit_period": null
-    },
-    "adaptive": {
-      "stop_atr_multiplier": 1.5,
-      "ma_exit_period": 20
-    }
-  }
+  "exit_overrides": {}
 }

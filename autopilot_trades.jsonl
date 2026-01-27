@@ -1,0 +1,17 @@
+{"time": "2026-01-27T18:49:51.821635", "action": "SELL", "symbol": "AMD", "qty": 130.0, "price": 250.8, "reason": "stop hit at $253.61 (ATR\u00d72.0)", "strategy": "momentum"}
+{"time": "2026-01-27T18:49:55.684106", "action": "SELL", "symbol": "XOM", "qty": 100.0, "price": 136.39, "reason": "stop hit at $136.04 (ATR\u00d72.0)", "strategy": "momentum"}
+{"time": "2026-01-27T18:50:00.000993", "action": "BUY", "symbol": "META", "qty": 29, "price": 673.0, "reason": "Router entry: momentum str=+1.00, up 10.7%", "strategy": "momentum"}
+{"time": "2026-01-27T18:50:03.847395", "action": "BUY", "symbol": "NVDA", "qty": 2, "price": 189.6, "reason": "Router entry: momentum str=+0.64, up 6.4%", "strategy": "momentum"}
+{"time": "2026-01-27T18:50:24.222820", "action": "SELL", "symbol": "META", "qty": 29.0, "price": 669.985, "reason": "stop hit at $672.94 (ATR\u00d72.0)", "strategy": "momentum"}
+{"time": "2026-01-27T18:50:28.840957", "action": "BUY", "symbol": "MSFT", "qty": 40, "price": 481.77, "reason": "Router entry: momentum str=+0.60, up 6.0%", "strategy": "momentum"}
+{"time": "2026-01-27T18:50:32.559975", "action": "BUY", "symbol": "AMZN", "qty": 1, "price": 243.47, "reason": "Router entry: momentum str=+0.53, up 5.3%", "strategy": "momentum"}
+{"time": "2026-01-27T18:55:27.609777", "action": "SELL", "symbol": "AMZN", "qty": 1.0, "price": 243.4152, "reason": "stop hit at $243.41 (ATR\u00d72.0)", "strategy": "momentum"}
+{"time": "2026-01-27T18:55:28.011423", "action": "SELL", "symbol": "MSFT", "qty": 40.0, "price": 482.26, "reason": "stop hit at $482.06 (ATR\u00d72.0)", "strategy": "momentum"}
+{"time": "2026-01-27T18:55:42.046859", "action": "BUY", "symbol": "AAPL", "qty": 152, "price": 259.62, "reason": "Router entry: momentum str=+0.53, up 5.3%", "strategy": "momentum"}
+{"time": "2026-01-27T18:55:46.168636", "action": "BUY", "symbol": "XLE", "qty": 3, "price": 49.45, "reason": "Router entry: momentum str=+0.39, up 3.9%", "strategy": "momentum"}
+{"time": "2026-01-27T19:00:24.331469", "action": "SELL", "symbol": "AAPL", "qty": 152.0, "price": 259.87, "reason": "stop hit at $259.75 (ATR\u00d72.0)", "strategy": "momentum"}
+{"time": "2026-01-27T19:00:25.173634", "action": "SELL", "symbol": "XLE", "qty": 3.0, "price": 49.4645, "reason": "stop hit at $49.45 (ATR\u00d72.0)", "strategy": "momentum"}
+{"time": "2026-01-27T19:00:26.789035", "action": "BUY", "symbol": "GOOGL", "qty": 117, "price": 337.0, "reason": "Router entry: momentum str=+0.42, up 4.2%", "strategy": "momentum"}
+{"time": "2026-01-27T19:10:24.341959", "action": "SELL", "symbol": "GOOGL", "qty": 117.0, "price": 335.55, "reason": "stop hit at $335.48 (ATR\u00d72.0)", "strategy": "momentum"}
+{"time": "2026-01-27T19:15:25.701873", "action": "BUY", "symbol": "TSLA", "qty": 90, "price": 439.0, "reason": "Router entry: momentum str=+0.30, up 3.0%", "strategy": "momentum"}
+{"time": "2026-01-27T19:20:24.687818", "action": "SELL", "symbol": "TSLA", "qty": 90.0, "price": 431.4589, "reason": "closed below 10 MA ($439.57)", "strategy": "momentum"}

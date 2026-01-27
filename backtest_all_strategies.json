@@ -1,0 +1,100 @@
+[
+  {
+    "strategy": "momentum",
+    "exit_params": {
+      "stop_atr_multiplier": 2.0,
+      "trailing_stop_enabled": true,
+      "profit_giveback_pct": 0.4,
+      "ma_exit_period": 10
+    },
+    "period": "2022-01-03 to 2026-01-23",
+    "trading_days": 1018,
+    "initial": 100000.0,
+    "final": 7918.395048571501,
+    "total_return_pct": -92.0816049514285,
+    "sharpe": -1.2406591502540931,
+    "max_drawdown_pct": 92.83967346227693,
+    "max_drawdown_date": "2025-12-17",
+    "total_trades": 2534,
+    "win_rate": 52.99921073401737,
+    "avg_win_pct": 1.1825557898929564,
+    "avg_loss_pct": -2.065531973834286,
+    "profit_factor": 0.49005880112101435,
+    "avg_hold_days": 1.81965272296764,
+    "exit_reasons": {
+      "stop (ATR\u00d72.0)": {
+        "count": 2401,
+        "avg_pnl": -0.08007804833337727
+      },
+      "MA10 cross": {
+        "count": 133,
+        "avg_pnl": -5.109840307984626
+      }
+    },
+    "open_positions": 4
+  },
+  {
+    "strategy": "bollinger",
+    "exit_params": {
+      "stop_atr_multiplier": 1.5,
+      "trailing_stop_enabled": false,
+      "profit_giveback_pct": 0.4,
+      "ma_exit_period": null
+    },
+    "period": "2022-01-03 to 2026-01-23",
+    "trading_days": 1018,
+    "initial": 100000.0,
+    "final": 127774.64227500002,
+    "total_return_pct": 27.774642275000023,
+    "sharpe": 0.3528110441806553,
+    "max_drawdown_pct": 46.84111826071427,
+    "max_drawdown_date": "2022-11-09",
+    "total_trades": 52,
+    "win_rate": 0.0,
+    "avg_win_pct": 0,
+    "avg_loss_pct": -8.981237978942566,
+    "profit_factor": 0.0,
+    "avg_hold_days": 42.80769230769231,
+    "exit_reasons": {
+      "stop (ATR\u00d71.5)": {
+        "count": 52,
+        "avg_pnl": -8.981237978942566
+      }
+    },
+    "open_positions": 4
+  },
+  {
+    "strategy": "adaptive",
+    "exit_params": {
+      "stop_atr_multiplier": 1.5,
+      "trailing_stop_enabled": true,
+      "profit_giveback_pct": 0.4,
+      "ma_exit_period": 20
+    },
+    "period": "2022-01-03 to 2026-01-23",
+    "trading_days": 1018,
+    "initial": 100000.0,
+    "final": 19809.206210000084,
+    "total_return_pct": -80.1907937899999,
+    "sharpe": -1.0515797625190824,
+    "max_drawdown_pct": 81.07745205184649,
+    "max_drawdown_date": "2026-01-23",
+    "total_trades": 1620,
+    "win_rate": 51.66666666666667,
+    "avg_win_pct": 1.1231633196596191,
+    "avg_loss_pct": -1.9522095348685928,
+    "profit_factor": 0.5615772494599623,
+    "avg_hold_days": 1.7882716049382716,
+    "exit_reasons": {
+      "stop (ATR\u00d71.5)": {
+        "count": 1584,
+        "avg_pnl": -0.3085880705471276
+      },
+      "MA20 cross": {
+        "count": 36,
+        "avg_pnl": -2.7691350972321365
+      }
+    },
+    "open_positions": 4
+  }
+]
