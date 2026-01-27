@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-autopilot.py - fully automated trading
+autopilot.py - fully automated multi-strategy trading
 
-Runs the strategy end-to-end:
-1. Check positions for exit signals -> sell
+Runs the strategy router end-to-end:
+1. Check positions for exit signals (strategy-keyed exit params)
 2. Cancel stale stop orders, place fresh ones
-3. If slots open, scan for entries -> buy
-4. Log everything
+3. If slots open, scan via StrategyRouter for entries
+4. Record all trades in ledger with strategy attribution
+5. Log everything
 
 Run via systemd timer every 5 minutes during market hours.
 """
@@ -14,7 +15,7 @@ Run via systemd timer every 5 minutes during market hours.
 import sys
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 VENV_PATH = Path(__file__).parent / "venv" / "lib" / "python3.13" / "site-packages"
@@ -27,10 +28,14 @@ from alpaca.trading.requests import (
     GetOrdersRequest, QueryOrderStatus,
 )
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderType
+from alpaca.data.historical import StockHistoricalDataClient
+from alpaca.data.requests import StockBarsRequest
+from alpaca.data.timeframe import TimeFrame
 
 from trader import Trader
-from edge import EdgeTrader, MAX_POSITIONS, ATR_STOP_MULT
-from monitor import check_position, load_high_water_marks, clear_high_water
+from router import StrategyRouter, load_config
+from ledger import Ledger
+from monitor import update_high_water, clear_high_water
 from config import load_keys
 
 LOG_FILE = Path(__file__).parent / "autopilot.log"
@@ -48,6 +53,136 @@ logging.basicConfig(
 log = logging.getLogger("autopilot")
 
 
+# === Exit config resolution ===
+
+DEFAULT_EXIT_PARAMS = {
+    "stop_atr_multiplier": 1.5,
+    "trailing_stop_enabled": True,
+    "profit_giveback_pct": 0.4,
+    "ma_exit_period": 10,
+}
+
+
+def get_exit_params(config: dict, strategy: str) -> dict:
+    """Resolve exit params for a strategy: override > default > hardcoded."""
+    defaults = config.get("exit_defaults", DEFAULT_EXIT_PARAMS)
+    overrides = config.get("exit_overrides", {}).get(strategy, {})
+    params = {**DEFAULT_EXIT_PARAMS, **defaults, **overrides}
+    return params
+
+
+# === Technical helpers ===
+
+def calculate_atr(bars: list, period: int = 14) -> float:
+    """Calculate Average True Range from bar objects."""
+    if len(bars) < period + 1:
+        return 0
+    trs = []
+    for i in range(-period, 0):
+        high = float(bars[i].high)
+        low = float(bars[i].low)
+        prev_close = float(bars[i - 1].close)
+        tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+        trs.append(tr)
+    return sum(trs) / len(trs)
+
+
+def calculate_ma(bars: list, period: int) -> float:
+    """Calculate simple moving average."""
+    if len(bars) < period:
+        return 0
+    return sum(float(bars[i].close) for i in range(-period, 0)) / period
+
+
+def fetch_bars(data_client: StockHistoricalDataClient, symbol: str, days: int = 60) -> list:
+    """Fetch historical bars for a symbol."""
+    end = datetime.now() - timedelta(days=1)
+    start = end - timedelta(days=days)
+    request = StockBarsRequest(
+        symbol_or_symbols=symbol,
+        timeframe=TimeFrame.Day,
+        start=start,
+        end=end,
+    )
+    result = data_client.get_stock_bars(request)
+    if hasattr(result, 'data') and symbol in result.data:
+        return list(result.data[symbol])
+    return []
+
+
+# === Parameterized exit check ===
+
+def check_exit(bars: list, entry_price: float, high_water: float, exit_params: dict) -> dict:
+    """
+    Check if a position should be exited using strategy-specific parameters.
+
+    Args:
+        bars: Historical bar data for the symbol
+        entry_price: Average entry price
+        high_water: Peak price since entry
+        exit_params: Strategy-keyed exit configuration:
+            stop_atr_multiplier: ATR multiplier for initial stop
+            trailing_stop_enabled: Whether to use trailing stop
+            profit_giveback_pct: Max fraction of gains to give back (if trailing)
+            ma_exit_period: MA period for trend exit (None to disable)
+
+    Returns:
+        dict with exit signal, stop price, and diagnostics
+    """
+    if not bars or len(bars) < 20:
+        return {"exit": False, "reason": "insufficient data", "stop": None, "ma": None}
+
+    current = float(bars[-1].close)
+    atr = calculate_atr(bars)
+    if atr <= 0:
+        return {"exit": False, "reason": "no ATR", "stop": None, "ma": None}
+
+    atr_mult = exit_params["stop_atr_multiplier"]
+    trailing = exit_params["trailing_stop_enabled"]
+    giveback = exit_params["profit_giveback_pct"]
+    ma_period = exit_params["ma_exit_period"]
+
+    # Initial stop: N x ATR below entry
+    initial_stop = entry_price - (atr * atr_mult)
+
+    # Trailing stop: don't give back more than X% of gains
+    stop_price = initial_stop
+    if trailing and high_water > entry_price:
+        gain = high_water - entry_price
+        trail_stop = high_water - (gain * giveback)
+        stop_price = max(initial_stop, trail_stop)
+
+    # Exit: stop hit
+    if current < stop_price:
+        return {
+            "exit": True,
+            "reason": f"stop hit at ${stop_price:.2f} (ATR×{atr_mult})",
+            "price": current,
+        }
+
+    # Exit: MA cross
+    ma_value = None
+    if ma_period:
+        ma_value = calculate_ma(bars, ma_period)
+        if ma_value and current < ma_value:
+            return {
+                "exit": True,
+                "reason": f"closed below {ma_period} MA (${ma_value:.2f})",
+                "price": current,
+            }
+
+    return {
+        "exit": False,
+        "current": current,
+        "stop": stop_price,
+        "ma": ma_value,
+        "atr": atr,
+        "gain_pct": (current - entry_price) / entry_price * 100,
+    }
+
+
+# === State management ===
+
 def load_state() -> dict:
     if STATE_FILE.exists():
         return json.loads(STATE_FILE.read_text())
@@ -59,7 +194,10 @@ def save_state(state: dict):
     STATE_FILE.write_text(json.dumps(state, indent=2, default=str))
 
 
-def log_trade(action: str, symbol: str, qty: float, price: float, reason: str):
+# === Trade logging ===
+
+def log_trade_entry(action: str, symbol: str, qty: float, price: float,
+                    reason: str, strategy: str = "unknown"):
     entry = {
         "time": datetime.now().isoformat(),
         "action": action,
@@ -67,11 +205,14 @@ def log_trade(action: str, symbol: str, qty: float, price: float, reason: str):
         "qty": qty,
         "price": price,
         "reason": reason,
+        "strategy": strategy,
     }
     with open(TRADE_LOG, "a") as f:
         f.write(json.dumps(entry) + "\n")
-    log.info(f"TRADE: {action} {qty} {symbol} @ ${price:.2f} - {reason}")
+    log.info(f"TRADE: {action} {qty} {symbol} @ ${price:.2f} [{strategy}] - {reason}")
 
+
+# === Broker operations ===
 
 def get_trading_client() -> TradingClient:
     k, s = load_keys()
@@ -102,8 +243,9 @@ def place_stop(client: TradingClient, symbol: str, qty: float, stop_price: float
     return result
 
 
-def sell_position(client: TradingClient, symbol: str, qty: float, reason: str) -> bool:
-    """Market sell a position."""
+def sell_position(client: TradingClient, ledger: Ledger, symbol: str,
+                  qty: float, price: float, reason: str, strategy: str) -> bool:
+    """Market sell a position and record in ledger."""
     try:
         cancel_existing_stops(client, symbol)
         order = MarketOrderRequest(
@@ -113,18 +255,30 @@ def sell_position(client: TradingClient, symbol: str, qty: float, reason: str) -
             time_in_force=TimeInForce.DAY,
         )
         result = client.submit_order(order)
-        log_trade("SELL", symbol, qty, 0, reason)  # price filled async
+
+        # Record in ledger (strategy inferred from position)
+        try:
+            ledger.record_sell(symbol, qty, price, reason=reason, order_id=str(result.id))
+        except ValueError as e:
+            log.warning(f"Ledger sell failed for {symbol}: {e}")
+
+        log_trade_entry("SELL", symbol, qty, price, reason, strategy)
         clear_high_water(symbol)
-        log.info(f"SOLD {qty} {symbol} - {reason} (order {result.id})")
+        log.info(f"SOLD {qty} {symbol} [{strategy}] - {reason} (order {result.id})")
         return True
     except Exception as e:
         log.error(f"Failed to sell {symbol}: {e}")
         return False
 
 
-def buy_position(client: TradingClient, symbol: str, qty: int, stop_price: float, reason: str) -> bool:
-    """Market buy and place stop."""
+def buy_position(client: TradingClient, ledger: Ledger, symbol: str,
+                 qty: int, price: float, stop_price: float,
+                 reason: str, strategy: str) -> bool:
+    """Market buy, record in ledger, and place stop."""
     try:
+        # Cancel any existing stops for this symbol first (prevents wash trade rejection)
+        cancel_existing_stops(client, symbol)
+
         order = MarketOrderRequest(
             symbol=symbol,
             qty=qty,
@@ -132,8 +286,16 @@ def buy_position(client: TradingClient, symbol: str, qty: int, stop_price: float
             time_in_force=TimeInForce.DAY,
         )
         result = client.submit_order(order)
-        log_trade("BUY", symbol, qty, 0, reason)
-        log.info(f"BOUGHT {qty} {symbol} (order {result.id})")
+
+        # Record in ledger with strategy attribution
+        try:
+            ledger.record_buy(symbol, qty, price, strategy=strategy,
+                              reason=reason, order_id=str(result.id))
+        except ValueError as e:
+            log.warning(f"Ledger buy failed for {symbol}: {e}")
+
+        log_trade_entry("BUY", symbol, qty, price, reason, strategy)
+        log.info(f"BOUGHT {qty} {symbol} [{strategy}] (order {result.id})")
 
         # Place stop
         place_stop(client, symbol, qty, stop_price)
@@ -143,16 +305,25 @@ def buy_position(client: TradingClient, symbol: str, qty: int, stop_price: float
         return False
 
 
+# === Main autopilot ===
+
 def run():
     """Main autopilot loop - one pass."""
     log.info("=" * 50)
-    log.info("AUTOPILOT RUN")
+    log.info("AUTOPILOT RUN (multi-strategy)")
     log.info("=" * 50)
 
     state = load_state()
-    edge = EdgeTrader()
+    config = load_config()
     trader = Trader()
     client = get_trading_client()
+    ledger = Ledger()
+    router = StrategyRouter(config)
+
+    k, s = load_keys()
+    data_client = StockHistoricalDataClient(k, s)
+
+    max_positions = config.get("max_positions", 4)
 
     # Check market
     clock = trader.get_clock()
@@ -164,31 +335,49 @@ def run():
     # === PHASE 1: CHECK EXITS ===
     log.info("--- Phase 1: Exit checks ---")
     positions = trader.get_positions()
-    current_symbols = [p["symbol"] for p in positions]
 
     for p in positions:
-        status = check_position(edge, p)
+        symbol = p["symbol"]
+        entry_price = p["avg_entry"]
+        current_price = p["current_price"]
+        qty = float(p["qty"])
 
-        if status["exit_signal"]:
-            log.warning(f"EXIT SIGNAL for {p['symbol']}: {status['exit_reason']}")
-            sold = sell_position(client, p["symbol"], float(p["qty"]), status["exit_reason"])
+        # Determine owning strategy from ledger
+        strategy = ledger.get_position_strategy(symbol) or "unknown"
+
+        # Get strategy-specific exit params
+        exit_params = get_exit_params(config, strategy)
+
+        # Update high water mark
+        high_water = update_high_water(symbol, current_price)
+
+        # Fetch bars and check exit
+        bars = fetch_bars(data_client, symbol)
+        result = check_exit(bars, entry_price, high_water, exit_params)
+
+        if result["exit"]:
+            log.warning(f"EXIT SIGNAL for {symbol} [{strategy}]: {result['reason']}")
+            sold = sell_position(client, ledger, symbol, qty, current_price,
+                                result["reason"], strategy)
             if sold:
-                state.setdefault("stopped_out", []).append(p["symbol"])
+                state.setdefault("stopped_out", []).append(symbol)
                 state["trades_today"] = state.get("trades_today", 0) + 1
         else:
-            stop_str = f"${status['stop']:.2f}" if status.get("stop") else "N/A"
-            log.info(f"{p['symbol']}: OK (P/L: {status['pnl_pct']:+.1f}%, stop: {stop_str})")
+            stop_str = f"${result['stop']:.2f}" if result.get("stop") else "N/A"
+            ma_str = f"${result['ma']:.2f}" if result.get("ma") else "off"
+            log.info(f"{symbol} [{strategy}]: OK (P/L: {p['unrealized_pl_pct']:+.1f}%, "
+                     f"stop: {stop_str}, MA: {ma_str}, "
+                     f"ATR×{exit_params['stop_atr_multiplier']})")
 
-            # Refresh stop orders with latest calculated stop
-            if status.get("stop"):
-                cancel_existing_stops(client, p["symbol"])
-                place_stop(client, p["symbol"], float(p["qty"]), status["stop"])
+            # Refresh broker stop orders
+            if result.get("stop"):
+                cancel_existing_stops(client, symbol)
+                place_stop(client, symbol, qty, result["stop"])
 
     # === PHASE 2: CHECK ENTRIES ===
-    # Refresh positions after potential sells
     positions = trader.get_positions()
     current_symbols = [p["symbol"] for p in positions]
-    available_slots = MAX_POSITIONS - len(positions)
+    available_slots = max_positions - len(positions)
 
     if available_slots > 0:
         log.info(f"--- Phase 2: Entry scan ({available_slots} slots) ---")
@@ -196,31 +385,51 @@ def run():
         # Don't re-enter stocks we got stopped out of today
         blocked = set(state.get("stopped_out", []))
 
-        setups = edge.scan_for_setups(edge_watchlist())
-        new_setups = [s for s in setups if s["symbol"] not in current_symbols and s["symbol"] not in blocked]
+        # Scan via router - returns strategy-attributed signals
+        signals = router.get_entry_signals()
+        new_signals = [s for s in signals
+                       if s.symbol not in current_symbols and s.symbol not in blocked]
 
-        if new_setups:
-            for setup in new_setups[:available_slots]:
-                pos = edge.calculate_position(setup)
-                if pos["shares"] < 1:
-                    log.info(f"Skip {setup['symbol']}: position too small")
+        if new_signals:
+            for sig in new_signals[:available_slots]:
+                # Size position using router (respects per-strategy allocation)
+                try:
+                    quote = trader.get_quote(sig.symbol)
+                    price = quote["ask"]
+                except Exception:
+                    log.warning(f"Could not get quote for {sig.symbol}")
                     continue
 
-                log.info(f"ENTRY: {setup['symbol']} score={setup['score']} | {pos['shares']} shares @ ${setup['price']:.2f} | stop ${pos['stop_price']:.2f}")
+                sizing = router.calculate_position_size(sig, price)
+                shares = sizing["shares"]
+
+                if shares < 1:
+                    log.info(f"Skip {sig.symbol} [{sig.strategy}]: position too small "
+                             f"(avail: ${sizing['available_capital']:,.0f})")
+                    continue
+
+                # Calculate stop using this strategy's exit params
+                exit_params = get_exit_params(config, sig.strategy)
+                bars = fetch_bars(data_client, sig.symbol)
+                atr = calculate_atr(bars) if bars and len(bars) > 15 else 0
+                stop_price = price - (atr * exit_params["stop_atr_multiplier"]) if atr > 0 else price * 0.95
+
+                log.info(f"ENTRY: {sig.symbol} [{sig.strategy}] str={sig.strength:+.2f} | "
+                         f"{shares} shares @ ${price:.2f} | stop ${stop_price:.2f} "
+                         f"(ATR×{exit_params['stop_atr_multiplier']})")
+
                 bought = buy_position(
-                    client,
-                    setup["symbol"],
-                    pos["shares"],
-                    pos["stop_price"],
-                    f"Autopilot entry: score {setup['score']}, {', '.join(setup['reasons'])}",
+                    client, ledger, sig.symbol, shares, price, stop_price,
+                    f"Router entry: {sig.strategy} str={sig.strength:+.2f}, {sig.reason}",
+                    sig.strategy,
                 )
                 if bought:
                     state["trades_today"] = state.get("trades_today", 0) + 1
                     available_slots -= 1
         else:
-            log.info("No new setups meeting criteria.")
+            log.info("No new entry signals from router.")
     else:
-        log.info(f"--- Phase 2: Skip (fully loaded {MAX_POSITIONS}/{MAX_POSITIONS}) ---")
+        log.info(f"--- Phase 2: Skip (fully loaded {max_positions}/{max_positions}) ---")
 
     # === SUMMARY ===
     positions = trader.get_positions()
@@ -228,21 +437,19 @@ def run():
     log.info("--- Summary ---")
     log.info(f"Equity: ${account['portfolio_value']:,.2f} | Cash: ${account['cash']:,.2f}")
     for p in positions:
-        log.info(f"  {p['symbol']}: {p['qty']} @ ${p['current_price']:.2f} ({p['unrealized_pl_pct']:+.1f}%)")
+        strategy = ledger.get_position_strategy(p["symbol"]) or "?"
+        log.info(f"  {p['symbol']} [{strategy}]: {p['qty']} @ ${p['current_price']:.2f} "
+                 f"({p['unrealized_pl_pct']:+.1f}%)")
     log.info(f"Trades today: {state.get('trades_today', 0)}")
+
+    # Log per-strategy P&L
+    summary = ledger.summary()
+    for strat, data in summary.get("by_strategy", {}).items():
+        log.info(f"  Strategy {strat}: {data['closed_trades']} closed, "
+                 f"${data['realized_pnl']:+.2f} realized, {data['win_rate']:.0f}% win")
 
     save_state(state)
     log.info("Autopilot run complete.")
-
-
-def edge_watchlist() -> list:
-    """The universe we scan."""
-    return [
-        "NVDA", "META", "TSLA", "AMD", "AVGO", "NFLX", "AMZN", "GOOGL", "AAPL", "MSFT",
-        "MU", "AMAT", "LRCX", "KLAC", "MRVL", "ON", "QCOM", "INTC", "ARM", "SMCI",
-        "CRM", "ORCL", "ADBE", "PLTR", "COIN", "MSTR", "SNOW", "CRWD", "NET",
-        "XOM", "CVX", "OXY", "SLB", "HAL",
-    ]
 
 
 def reset_daily():
@@ -256,7 +463,7 @@ def reset_daily():
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Autopilot trading")
+    parser = argparse.ArgumentParser(description="Autopilot trading (multi-strategy)")
     parser.add_argument("command", nargs="?", default="run", choices=["run", "reset", "status"])
     args = parser.parse_args()
 
