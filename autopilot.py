@@ -426,6 +426,15 @@ def run():
     log.info("=" * 50)
 
     state = load_state()
+
+    # Auto-reset if last run was a different day (handles late starts, reboots)
+    last_run = state.get("last_run", "")
+    today = datetime.now().strftime("%Y-%m-%d")
+    if last_run and last_run[:10] != today:
+        log.info(f"New trading day detected (last run: {last_run[:10]}). Auto-resetting daily state.")
+        reset_daily()
+        state = load_state()  # Reload after reset
+
     config = load_config()
     trader = Trader()
     client = get_trading_client()
