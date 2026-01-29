@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# See CODEBASE.md for public interface documentation
 """
 morning.py - Pre-market / market-open wrapper
 
@@ -123,7 +124,7 @@ def check_alpaca() -> dict:
 
 
 def reconcile_positions() -> dict:
-    """Compare ledger positions vs Alpaca positions."""
+    """Compare ledger positions vs Alpaca positions (excluding thesis trades and XS positions)."""
     try:
         from trader import Trader
         from ledger import Ledger
@@ -133,10 +134,27 @@ def reconcile_positions() -> dict:
         ledger = Ledger()
         ledger_positions = {sym: pos.to_dict() for sym, pos in ledger.positions.items()}
 
+        # Get active thesis trade symbols (managed separately from ledger)
+        thesis_data = _load_json(BASE / "thesis_trades.json")
+        thesis_syms = set()
+        if thesis_data:
+            for trade in thesis_data.get("trades", []):
+                if trade.get("status", "").lower() in ("active", "open", "pending"):
+                    thesis_syms.add(trade.get("symbol"))
+
+        # Get XS positions (managed separately from zoo ledger)
+        xs_ledger = _load_json(BASE / "ledger_xs.json")
+        xs_syms = set()
+        if xs_ledger:
+            for pos in xs_ledger.get("positions", []):
+                xs_syms.add(pos.get("symbol"))
+
         alpaca_syms = set(alpaca_positions.keys())
         ledger_syms = set(ledger_positions.keys())
 
-        in_alpaca_only = alpaca_syms - ledger_syms
+        # Exclude thesis and XS symbols from orphan detection
+        excluded_syms = thesis_syms | xs_syms
+        in_alpaca_only = alpaca_syms - ledger_syms - excluded_syms
         in_ledger_only = ledger_syms - alpaca_syms
         in_both = alpaca_syms & ledger_syms
 
@@ -158,6 +176,7 @@ def reconcile_positions() -> dict:
             "qty_mismatches": mismatches,
             "alpaca_count": len(alpaca_syms),
             "ledger_count": len(ledger_syms),
+            "xs_count": len(xs_syms),
         }
     except Exception as e:
         return {"in_sync": False, "error": str(e)}
@@ -269,6 +288,103 @@ def check_autopilot() -> dict:
     }
 
 
+def check_autopilot_xs() -> dict:
+    """Check cross-sectional autopilot status."""
+    from zoneinfo import ZoneInfo
+    ET = ZoneInfo("America/New_York")
+
+    state = _load_json(BASE / "autopilot_xs_state.json")
+    ledger = _load_json(BASE / "ledger_xs.json")
+
+    if not state and not ledger:
+        return {"enabled": False}
+
+    state = state or {}
+    ledger = ledger or {"positions": [], "stats": {}}
+
+    # Get current holdings and P&L
+    positions = ledger.get("positions", [])
+    holdings = []
+    total_value = 0
+    total_unrealized = 0
+
+    if positions:
+        try:
+            from trader import Trader
+            t = Trader()
+            for p in positions:
+                try:
+                    quote = t.get_quote(p["symbol"])
+                    price = quote.get("price") or quote.get("last") or p["entry_price"]
+                except Exception:
+                    # Fallback to bar_cache
+                    from bar_cache import load_bars
+                    df = load_bars(p["symbol"])
+                    price = float(df["close"].iloc[-1]) if not df.empty else p["entry_price"]
+
+                value = p["shares"] * price
+                pnl = (price - p["entry_price"]) * p["shares"]
+                pnl_pct = (price / p["entry_price"] - 1) * 100
+
+                holdings.append({
+                    "symbol": p["symbol"],
+                    "shares": p["shares"],
+                    "entry_price": p["entry_price"],
+                    "current_price": price,
+                    "value": value,
+                    "pnl": pnl,
+                    "pnl_pct": pnl_pct,
+                    "rank": p.get("entry_rank", "?"),
+                })
+                total_value += value
+                total_unrealized += pnl
+        except Exception:
+            pass
+
+    # Check if rebalance is due
+    now = datetime.now(ET)
+    rebalance_due = now.weekday() == 0  # Monday
+    last_rebalance = state.get("last_rebalance")
+
+    if last_rebalance:
+        try:
+            last_dt = datetime.fromisoformat(last_rebalance)
+            if hasattr(last_dt, 'date') and last_dt.date() == now.date():
+                rebalance_due = False  # Already rebalanced today
+        except Exception:
+            pass
+
+    # Calculate allocation info
+    try:
+        from trader import Trader
+        t = Trader()
+        account = t.get_account()
+        total_equity = float(account["equity"])
+        xs_allocation_target = total_equity * 0.30  # 30%
+        xs_allocation_used = total_value
+        xs_allocation_pct = (total_value / xs_allocation_target * 100) if xs_allocation_target > 0 else 0
+    except Exception:
+        xs_allocation_target = 0
+        xs_allocation_used = total_value
+        xs_allocation_pct = 0
+
+    return {
+        "enabled": True,
+        "holdings": holdings,
+        "holdings_count": len(positions),
+        "total_value": total_value,
+        "unrealized_pnl": total_unrealized,
+        "realized_pnl": ledger.get("stats", {}).get("realized_pnl", 0),
+        "total_rebalances": ledger.get("stats", {}).get("total_rebalances", 0),
+        "last_rebalance": last_rebalance,
+        "rebalance_due_today": rebalance_due and now.weekday() == 0,
+        "next_rebalance": "Monday 9:35 ET",
+        "allocation_target": xs_allocation_target,
+        "allocation_used": xs_allocation_used,
+        "allocation_pct": xs_allocation_pct,
+    }
+
+
 def detect_anomalies() -> dict:
     """Flag orphan positions, failed runs, log errors."""
     anomalies = []
@@ -306,8 +422,24 @@ def detect_anomalies() -> dict:
         ledger = Ledger()
         ledger_syms = set(ledger.positions.keys())
 
-        # Positions in Alpaca but not in ledger = orphans
-        for sym in alpaca_syms - ledger_syms:
+        # Get active thesis trade symbols (managed separately from ledger)
+        thesis_data = _load_json(BASE / "thesis_trades.json")
+        thesis_syms = set()
+        if thesis_data:
+            for trade in thesis_data.get("trades", []):
+                if trade.get("status", "").lower() in ("active", "open", "pending"):
+                    thesis_syms.add(trade.get("symbol"))
+
+        # Get XS positions (managed separately from zoo ledger)
+        xs_ledger = _load_json(BASE / "ledger_xs.json")
+        xs_syms = set()
+        if xs_ledger:
+            for pos in xs_ledger.get("positions", []):
+                xs_syms.add(pos.get("symbol"))
+
+        # Positions in Alpaca but not in ledger (excluding thesis and XS) = orphans
+        excluded_syms = thesis_syms | xs_syms
+        for sym in alpaca_syms - ledger_syms - excluded_syms:
             anomalies.append({"type": "orphan_position", "message": f"{sym} in Alpaca but not in ledger"})
 
         # Positions in ledger but not in Alpaca = ghost
@@ -403,15 +535,48 @@ def build_report(data: dict) -> str:
             lines.append(f"- **ACTIVE** {t['symbol']}: {t['shares']} shares @ ${t.get('entry_price', '?')} | targets: {remaining}")
         lines.append("")
 
-    # Autopilot
+    # Autopilot (Zoo)
     ap = data.get("autopilot", {})
-    lines.append("## Autopilot")
+    lines.append("## Autopilot (Zoo)")
     lines.append(f"- Timer: {'ACTIVE' if ap.get('timer_active') else 'INACTIVE'}")
     lines.append(f"- Last run: {ap.get('last_run', 'never')}")
     lines.append(f"- Trades today: {ap.get('trades_today', 0)}")
     if ap.get("stopped_out"):
         lines.append(f"- Stopped out: {', '.join(ap['stopped_out'])}")
     lines.append("")
+
+    # Cross-Sectional Autopilot
+    xs = data.get("autopilot_xs", {})
+    if xs.get("enabled"):
+        lines.append("## Autopilot (Cross-Sectional)")
+
+        # Rebalance alert
+        if xs.get("rebalance_due_today"):
+            lines.append("**REBALANCE DUE TODAY (Monday)**")
+            lines.append("")
+
+        # Allocation
+        lines.append(f"- Allocation: ${xs.get('allocation_used', 0):,.2f} / ${xs.get('allocation_target', 0):,.2f} ({xs.get('allocation_pct', 0):.0f}%)")
+        lines.append(f"- Holdings: {xs.get('holdings_count', 0)}/10")
+        lines.append(f"- Last rebalance: {xs.get('last_rebalance', 'never')}")
+        lines.append(f"- Next rebalance: {xs.get('next_rebalance', 'Monday 9:35 ET')}")
+        lines.append(f"- Unrealized P&L: ${xs.get('unrealized_pnl', 0):+,.2f}")
+        lines.append(f"- Realized P&L: ${xs.get('realized_pnl', 0):+,.2f}")
+        lines.append("")
+
+        # Holdings table
+        holdings = xs.get("holdings", [])
+        if holdings:
+            lines.append("### XS Holdings")
+            lines.append("| Symbol | Shares | Entry | Current | P&L | P&L% |")
+            lines.append("|--------|--------|-------|---------|-----|------|")
+            for h in holdings:
+                lines.append(f"| {h['symbol']} | {h['shares']:.0f} | ${h['entry_price']:.2f} | ${h['current_price']:.2f} | ${h['pnl']:+,.2f} | {h['pnl_pct']:+.1f}% |")
+            lines.append("")
+    else:
+        lines.append("## Autopilot (Cross-Sectional)")
+        lines.append("Not initialized (no positions)")
+        lines.append("")
 
     # Anomalies
     anom = data.get("anomalies", {})
@@ -436,6 +601,7 @@ def print_quiet(data: dict):
     anom = data.get("anomalies", {})
     recon = data.get("reconciliation", {})
     ap = data.get("autopilot", {})
+    xs = data.get("autopilot_xs", {})
 
     equity = f"${acct.get('equity', 0):,.0f}" if acct.get("connected") else "DISCONNECTED"
     pl = acct.get("pl_today", 0)
@@ -445,7 +611,14 @@ def print_quiet(data: dict):
     timer = "on" if ap.get("timer_active") else "OFF"
     issues = anom.get("count", 0)
 
-    print(f"morning | {equity} ({pl_str}) | {sync} | timer:{timer} | issues:{issues}{mem_warn}")
+    # XS status
+    xs_str = ""
+    if xs.get("enabled"):
+        xs_count = xs.get("holdings_count", 0)
+        xs_rebal = " REBAL!" if xs.get("rebalance_due_today") else ""
+        xs_str = f" | xs:{xs_count}/10{xs_rebal}"
+
+    print(f"morning | {equity} ({pl_str}) | {sync} | timer:{timer} | issues:{issues}{mem_warn}{xs_str}")
 
 
 def main():
@@ -465,6 +638,7 @@ def main():
     data["overnight"] = get_overnight_changes()
     data["thesis"] = get_pending_thesis()
     data["autopilot"] = check_autopilot()
+    data["autopilot_xs"] = check_autopilot_xs()
     data["anomalies"] = detect_anomalies()
 
     # Determine exit code

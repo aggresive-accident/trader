@@ -2,10 +2,13 @@
 
 Automated multi-strategy paper trading system on Alpaca. $100k paper account.
 
-Two parallel tracks:
+Three parallel tracks:
 - **Strategy Zoo**: rules-based strategies (momentum, bollinger) running on autopilot via systemd timer
+- **Cross-Sectional Autopilot**: top-10 momentum factor portfolio, 30% allocation, Monday rebalance
 - **Thesis Trades**: discretionary positions managed manually via `thesis_execute.py`
-- **Cross-Sectional Research**: factor backtesting across 200 S&P 500 names (offline, not live)
+
+Plus offline research:
+- **Research Queue**: systematic backtesting and parameter sensitivity analysis (see `~/workspace/research/`)
 
 ## Architecture
 
@@ -14,10 +17,12 @@ Two parallel tracks:
                     │           Alpaca Paper API           │
                     └──────┬──────────────┬───────────────┘
                            │              │
-              ┌────────────┴──┐    ┌──────┴───────────┐
-              │  autopilot.py │    │ thesis_execute.py │
-              │  (systemd 5m) │    │  (manual/claude)  │
-              └──┬────┬───┬──┘    └──────────────────┘
+              ┌────────────┴──┐    ┌────────────────┐    ┌──────────────────┐
+              │  autopilot.py │    │autopilot_xs.py │    │ thesis_execute.py │
+              │  (systemd 5m) │    │ (Monday 9:35)  │    │  (manual/claude)  │
+              └──┬────┬───┬──┘    └───────┬────────┘    └──────────────────┘
+                 │    │   │               │
+              ┌──┴────┴───┴───────────────┘
                  │    │   │
       ┌──────────┘    │   └──────────┐
       │               │              │
@@ -81,6 +86,10 @@ python3 state_export.py               # write to state/strategic_context.md
 | `monitor.py` | High water mark tracking for trailing stops. |
 | `thesis_execute.py` | Manual thesis trade execution. Buy/sell/status with `--confirm` flag. |
 | `thesis_trades.json` | Thesis trade state: entries, targets, invalidation, outcomes. |
+| `autopilot_xs.py` | Cross-sectional momentum autopilot. Top-10 factor portfolio, 30% allocation. |
+| `ledger_xs.py` | XS position ledger. Tracks holdings, rebalances, P&L separately from zoo. |
+| `autopilot_xs_state.json` | XS state: holdings, last rebalance, rankings history. |
+| `ledger_xs.json` | XS trade history and position tracking. |
 
 ### Strategies
 
@@ -127,11 +136,13 @@ python3 state_export.py               # write to state/strategic_context.md
 
 ## Key Concepts
 
-### Zoo vs Thesis Trades
+### Zoo vs XS vs Thesis Trades
 
-**Zoo** (`autopilot.py` + `router.py`): Rules-based, automated. Strategies generate signals, autopilot executes. Every position is attributed to a strategy via the ledger. Runs unattended.
+**Zoo** (`autopilot.py` + `router.py`): Rules-based per-symbol strategies (momentum, bollinger). Strategies generate signals, autopilot executes. Every position is attributed to a strategy via the ledger. Runs every 5 minutes via systemd timer.
 
-**Thesis** (`thesis_execute.py` + `thesis_trades.json`): Discretionary, manual. Human or Claude decides entry/exit based on a stated thesis with explicit invalidation criteria. Completely separate from autopilot. Protected by the `exclusions` list in `router_config.json`.
+**Cross-Sectional** (`autopilot_xs.py` + `ledger_xs.py`): Factor-based ranking portfolio. Ranks all 200 S&P symbols by 25-day momentum, buys top 10, equal weight. 30% of capital. Rebalances Monday 9:35 ET with persistence bands (buy ≤10, sell >15) to reduce turnover. Separate ledger from zoo.
+
+**Thesis** (`thesis_execute.py` + `thesis_trades.json`): Discretionary, manual. Human or Claude decides entry/exit based on a stated thesis with explicit invalidation criteria. Completely separate from both autopilots. Protected by the `exclusions` list in `router_config.json`.
 
 ### Signal-Exit Mode
 
@@ -163,8 +174,19 @@ ALPACA_SECRET_KEY=...
 
 Paper trading only. No real money.
 
+## Quick Commands - Cross-Sectional
+
+```bash
+python3 autopilot_xs.py status      # XS portfolio state
+python3 autopilot_xs.py rankings    # current factor rankings (top 20)
+python3 autopilot_xs.py preview     # preview rebalance trades
+python3 autopilot_xs.py run         # execute rebalance (Monday only by default)
+python3 autopilot_xs.py run --force # force rebalance any day
+```
+
 ## Other Docs
 
 - [THESIS_TRADES.md](THESIS_TRADES.md) - Discretionary trade management
 - [STRATEGY_ZOO.md](STRATEGY_ZOO.md) - Strategy configuration and backtests
 - [CROSS_SECTIONAL.md](CROSS_SECTIONAL.md) - Factor research framework
+- [../research/README.md](../research/README.md) - Research queue system

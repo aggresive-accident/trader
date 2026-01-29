@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# See CODEBASE.md for public interface documentation
 """
 evening.py - End of day / market close wrapper
 
@@ -268,7 +269,9 @@ def archive_snapshot() -> dict:
 
     files_to_archive = [
         "autopilot_state.json",
+        "autopilot_xs_state.json",
         "trades_ledger.json",
+        "ledger_xs.json",
         "thesis_trades.json",
         "router_config.json",
         "equity_curve.json",
@@ -289,6 +292,85 @@ def archive_snapshot() -> dict:
         archived += 1
 
     return {"archived": True, "path": str(archive_day_dir), "files": archived, "already_existed": False}
+
+
+def check_autopilot_xs() -> dict:
+    """Check cross-sectional autopilot status for evening report."""
+    from zoneinfo import ZoneInfo
+    ET = ZoneInfo("America/New_York")
+
+    state = _load_json(BASE / "autopilot_xs_state.json")
+    ledger = _load_json(BASE / "ledger_xs.json")
+
+    if not state and not ledger:
+        return {"enabled": False}
+
+    state = state or {}
+    ledger = ledger or {"positions": [], "stats": {}}
+
+    # Get current holdings and P&L
+    positions = ledger.get("positions", [])
+    holdings = []
+    total_value = 0
+    total_unrealized = 0
+
+    if positions:
+        try:
+            from trader import Trader
+            from bar_cache import load_bars
+            t = Trader()
+            for p in positions:
+                try:
+                    quote = t.get_quote(p["symbol"])
+                    price = quote.get("price") or quote.get("last") or p["entry_price"]
+                except Exception:
+                    df = load_bars(p["symbol"])
+                    price = float(df["close"].iloc[-1]) if not df.empty else p["entry_price"]
+
+                value = p["shares"] * price
+                pnl = (price - p["entry_price"]) * p["shares"]
+                pnl_pct = (price / p["entry_price"] - 1) * 100
+
+                holdings.append({
+                    "symbol": p["symbol"],
+                    "shares": p["shares"],
+                    "entry_price": p["entry_price"],
+                    "current_price": price,
+                    "value": value,
+                    "pnl": pnl,
+                    "pnl_pct": pnl_pct,
+                })
+                total_value += value
+                total_unrealized += pnl
+        except Exception:
+            pass
+
+    # Calculate allocation info
+    try:
+        from trader import Trader
+        t = Trader()
+        account = t.get_account()
+        total_equity = float(account["equity"])
+        xs_allocation_target = total_equity * 0.30
+        xs_allocation_pct = (total_value / xs_allocation_target * 100) if xs_allocation_target > 0 else 0
+    except Exception:
+        xs_allocation_target = 0
+        xs_allocation_pct = 0
+
+    return {
+        "enabled": True,
+        "holdings": holdings,
+        "holdings_count": len(positions),
+        "total_value": total_value,
+        "unrealized_pnl": total_unrealized,
+        "realized_pnl": ledger.get("stats", {}).get("realized_pnl", 0),
+        "total_rebalances": ledger.get("stats", {}).get("total_rebalances", 0),
+        "total_trades": ledger.get("stats", {}).get("total_trades", 0),
+        "last_rebalance": state.get("last_rebalance"),
+        "allocation_target": xs_allocation_target,
+        "allocation_used": total_value,
+        "allocation_pct": xs_allocation_pct,
+    }
 
 
 # === Output ===
@@ -358,6 +440,27 @@ def build_report(data: dict) -> str:
                 lines.append(f"  Targets hit: {', '.join(t['targets_hit_today'])}")
         lines.append("")
 
+    # Cross-Sectional Autopilot
+    xs = data.get("autopilot_xs", {})
+    if xs.get("enabled"):
+        lines.append("## Cross-Sectional Autopilot")
+        lines.append(f"- Allocation: ${xs.get('allocation_used', 0):,.2f} / ${xs.get('allocation_target', 0):,.2f} ({xs.get('allocation_pct', 0):.0f}%)")
+        lines.append(f"- Holdings: {xs.get('holdings_count', 0)}/10")
+        lines.append(f"- Unrealized P&L: ${xs.get('unrealized_pnl', 0):+,.2f}")
+        lines.append(f"- Realized P&L: ${xs.get('realized_pnl', 0):+,.2f}")
+        lines.append(f"- Total rebalances: {xs.get('total_rebalances', 0)}")
+        lines.append(f"- Last rebalance: {xs.get('last_rebalance', 'never')}")
+        lines.append("")
+
+        holdings = xs.get("holdings", [])
+        if holdings:
+            lines.append("### XS Holdings")
+            lines.append("| Symbol | Shares | Entry | Current | P&L | P&L% | Value |")
+            lines.append("|--------|--------|-------|---------|-----|------|-------|")
+            for h in holdings:
+                lines.append(f"| {h['symbol']} | {h['shares']:.0f} | ${h['entry_price']:.2f} | ${h['current_price']:.2f} | ${h['pnl']:+,.2f} | {h['pnl_pct']:+.1f}% | ${h['value']:,.0f} |")
+            lines.append("")
+
     # Log rotation
     logs = data.get("logs", {})
     needs_rotation = [name for name, info in logs.items() if info.get("needs_rotation")]
@@ -384,6 +487,7 @@ def print_quiet(data: dict):
     delta = data.get("equity_delta", {})
     thesis = data.get("thesis_targets", {})
     archive = data.get("archive", {})
+    xs = data.get("autopilot_xs", {})
 
     equity = f"${act.get('equity', 0):,.0f}"
     total_pl = act.get("total_pnl", 0)
@@ -398,7 +502,14 @@ def print_quiet(data: dict):
 
     archived = archive.get("files", 0)
 
-    print(f"evening | {equity} ({pl_str}) | trades:{trades} | vs_prev:{delta_str} | stops:{stops} tgts:{targets} | archived:{archived}")
+    # XS status
+    xs_str = ""
+    if xs.get("enabled"):
+        xs_count = xs.get("holdings_count", 0)
+        xs_pnl = xs.get("unrealized_pnl", 0)
+        xs_str = f" | xs:{xs_count}/10 (${xs_pnl:+,.0f})"
+
+    print(f"evening | {equity} ({pl_str}) | trades:{trades} | vs_prev:{delta_str} | stops:{stops} tgts:{targets} | archived:{archived}{xs_str}")
 
 
 def main():
@@ -415,6 +526,7 @@ def main():
     data["activity"] = get_days_activity()
     data["equity_delta"] = compare_to_previous_eod()
     data["thesis_targets"] = check_thesis_targets()
+    data["autopilot_xs"] = check_autopilot_xs()
     data["logs"] = check_log_rotation()
     data["archive"] = archive_snapshot()
 
