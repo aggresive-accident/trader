@@ -39,6 +39,7 @@ if VENV_PATH.exists():
 
 from trader import Trader
 from bar_cache import load_bars, SP500_TOP200, cache_status
+from decision_journal import DecisionJournal, build_xs_rebalance_decision
 
 logging.basicConfig(
     level=logging.INFO,
@@ -666,6 +667,21 @@ def cmd_run(force: bool = False, dry_run: bool = False):
 
     if not trades:
         print("No trades needed.")
+
+        # Log decision even when no trades
+        journal = DecisionJournal()
+        current_positions = ledger.get("positions", [])
+        decision = build_xs_rebalance_decision(
+            rankings=rankings,
+            current_positions=current_positions,
+            trades=[],
+            results=[],
+            allocation=allocation,
+            dry_run=False,
+        )
+        journal.log(decision)
+        log.info("Decision logged: rebalance (no trades)")
+
         state["last_rebalance"] = timestamp
         save_state(state)
         return
@@ -684,6 +700,20 @@ def cmd_run(force: bool = False, dry_run: bool = False):
         state["last_rebalance"] = timestamp
         state["rebalance_count"] = state.get("rebalance_count", 0) + 1
         save_state(state)
+
+    # Log decision
+    journal = DecisionJournal()
+    current_positions = ledger.get("positions", [])
+    decision = build_xs_rebalance_decision(
+        rankings=rankings,
+        current_positions=current_positions,
+        trades=trades,
+        results=results,
+        allocation=allocation,
+        dry_run=dry_run,
+    )
+    journal.log(decision)
+    log.info(f"Decision logged: {decision.action}")
 
     # Summary
     executed = [r for r in results if r.get("status") == "executed"]
