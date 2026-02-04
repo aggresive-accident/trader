@@ -8,3 +8,20 @@ equity_curve.json
 high_water_marks.json
 trades.json
 .signal_state.json
+
+# Logs
+*.log
+
+# Data and results
+data/
+results/
+
+# State files (regenerated)
+state/archive/
+state/*.json
+state/morning_report.md
+state/evening_report.md
+
+# Cross-sectional state
+*_xs_state.json
+ledger_xs.json

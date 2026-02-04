@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# See CODEBASE.md for public interface documentation
 """
 state_export.py - Generate strategic context for external advisors.
 

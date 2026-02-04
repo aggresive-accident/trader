@@ -1,15 +1,7 @@
 {
-  "trades_today": 10,
-  "last_run": "2026-01-27T21:55:06.299465",
+  "trades_today": 1,
+  "last_run": "2026-02-04T18:30:22.545065",
   "stopped_out": [
-    "AMD",
-    "XOM",
-    "META",
-    "AMZN",
-    "MSFT",
-    "AAPL",
-    "XLE",
-    "GOOGL",
-    "TSLA"
+    "NVDA"
   ]
 }

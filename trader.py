@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# See CODEBASE.md for public interface documentation
 """
 trader.py - core trading operations
 

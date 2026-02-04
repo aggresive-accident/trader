@@ -1,6 +1,6 @@
 ## Strategic Context
 
-Generated: 2026-01-27 19:31:03
+Generated: 2026-01-30 19:11:57
 
 This file describes the full state of the trader system for cross-session strategic context.
 
@@ -12,9 +12,8 @@ This file describes the full state of the trader system for cross-session strate
 
 | Strategy | Allocation | Stop ATR× | Trailing | MA Exit | Giveback |
 |----------|-----------|-----------|----------|---------|----------|
-| momentum | 40% | 2.0 | yes | 10 | 0.4 |
-| bollinger | 35% | 1.5 | no | off | 0.4 |
-| adaptive | 25% | 1.5 | yes | 20 | 0.4 |
+| momentum | 50% | 0 | no | off | 0 |
+| bollinger | 50% | 0 | no | off | 0 |
 
 **Max positions:** 4
 **Risk per trade:** 0.03
@@ -26,10 +25,24 @@ This file describes the full state of the trader system for cross-session strate
 
 | Symbol | Qty | Entry | Current | P/L | P/L% | Strategy |
 |--------|-----|-------|---------|-----|------|----------|
-| NVDA | 2.0 | $189.61 | $189.12 | $-0.98 | -0.26% | momentum |
+| AMAT | 9.0 | $334.93 | $328.28 | $-59.85 | -1.99% | unknown |
+| AMD | 12.0 | $241.06 | $239.70 | $-16.35 | -0.57% | unknown |
+| DOW | 110.0 | $27.58 | $27.68 | $+10.45 | +0.34% | unknown |
+| FCX | 50.0 | $61.70 | $60.51 | $-59.69 | -1.93% | unknown |
+| GME | 420.0 | $23.80 | $23.95 | $+63.00 | +0.63% | unknown |
+| KLAC | 2.0 | $1575.71 | $1451.64 | $-248.13 | -7.87% | unknown |
+| LHX | 8.0 | $353.33 | $343.90 | $-75.44 | -2.67% | unknown |
+| LRCX | 13.0 | $248.88 | $238.42 | $-135.97 | -4.20% | unknown |
+| META | 73.0 | $671.29 | $717.35 | $+3,362.38 | +6.86% | momentum |
+| MU | 8.0 | $449.44 | $429.22 | $-161.76 | -4.50% | unknown |
+| NVDA | 2.0 | $189.61 | $191.63 | $+4.03 | +1.06% | momentum |
+| SLB | 62.0 | $48.15 | $48.07 | $-4.70 | -0.16% | unknown |
+| TER | 13.0 | $252.50 | $243.69 | $-114.53 | -3.49% | unknown |
+| XLE | 1.0 | $50.79 | $50.54 | $-0.25 | -0.49% | momentum |
+| XOM | 1.0 | $139.75 | $140.13 | $+0.38 | +0.27% | momentum |
 
-**Total market value:** $378.24
-**Unrealized P/L:** $-0.98
+**Total market value:** $93,235.96
+**Unrealized P/L:** $+2,563.57
 
 ---
 
@@ -37,10 +50,10 @@ This file describes the full state of the trader system for cross-session strate
 
 | Metric | Value |
 |--------|-------|
-| Equity | $100,168.88 |
-| Cash | $99,790.65 |
-| Buying Power | $199,959.53 |
-| Day P/L | $+22.69 |
+| Equity | $102,719.23 |
+| Cash | $9,497.29 |
+| Buying Power | $283,820.02 |
+| Day P/L | $-1,933.39 |
 | Market | OPEN |
 
 ---
@@ -51,11 +64,12 @@ This file describes the full state of the trader system for cross-session strate
 
 | Strategy | Trades | Closed | Realized P/L | Win Rate |
 |----------|--------|--------|-------------|----------|
-| momentum | 21 | 10 | $-722.12 | 60% |
+| momentum | 24 | 10 | $-722.12 | 60% |
+| unknown | 10 | 0 | $+0.00 | 0% |
 
 ### Autopilot Trade Log Summary
 
-- Total entries: 8 buys, 9 sells
+- Total entries: 11 buys, 9 sells
 - Strategies used: momentum
 
 ---
@@ -131,15 +145,26 @@ This file describes the full state of the trader system for cross-session strate
 
 ---
 
+## Thesis Trades
+
+_Discretionary trades managed separately from autopilot/strategy zoo._
+
+### GME [OPEN]
+
+- **Entry:** 2026-01-28 | 420 shares @ $23.8 | $9,996.0
+- **Thesis:** Insider buying + settlement pressure + technical breakout
+- **Invalidation:** close below $19.0 OR no $25 by this date (by 2026-03-14)
+- **Targets:** T1: $30 (trim 25%) | T2: $50 (trim 25%) | T3: hold (trim 50%)
+
+
+---
+
 ## Recent Activity
 
 ### Recent Trades
 
 | Time | Action | Symbol | Qty | Price | Strategy | Reason |
 |------|--------|--------|-----|-------|----------|--------|
-| 2026-01-27T18:50:00 | BUY | META | 29 | $673.00 | momentum | Router entry: momentum str=+1.00, up 10. |
-| 2026-01-27T18:50:03 | BUY | NVDA | 2 | $189.60 | momentum | Router entry: momentum str=+0.64, up 6.4 |
-| 2026-01-27T18:50:24 | SELL | META | 29.0 | $669.99 | momentum | stop hit at $672.94 (ATR×2.0) |
 | 2026-01-27T18:50:28 | BUY | MSFT | 40 | $481.77 | momentum | Router entry: momentum str=+0.60, up 6.0 |
 | 2026-01-27T18:50:32 | BUY | AMZN | 1 | $243.47 | momentum | Router entry: momentum str=+0.53, up 5.3 |
 | 2026-01-27T18:55:27 | SELL | AMZN | 1.0 | $243.42 | momentum | stop hit at $243.41 (ATR×2.0) |
@@ -152,36 +177,51 @@ This file describes the full state of the trader system for cross-session strate
 | 2026-01-27T19:10:24 | SELL | GOOGL | 117.0 | $335.55 | momentum | stop hit at $335.48 (ATR×2.0) |
 | 2026-01-27T19:15:25 | BUY | TSLA | 90 | $439.00 | momentum | Router entry: momentum str=+0.30, up 3.0 |
 | 2026-01-27T19:20:24 | SELL | TSLA | 90.0 | $431.46 | momentum | closed below 10 MA ($439.57) |
+| 2026-01-28T17:55:40 | BUY | META | 73 | $676.50 | momentum | Router entry: momentum str=+0.95, up 9.5 |
+| 2026-01-29T16:11:37 | BUY | XOM | 1 | $139.74 | momentum | Router entry: momentum str=+0.44, up 4.4 |
+| 2026-01-29T16:11:38 | BUY | XLE | 1 | $50.79 | momentum | Router entry: momentum str=+0.36, up 3.6 |
 
 ### Recent Autopilot Log
 
 ```
-2026-01-27 19:30:23,201 INFO ==================================================
-2026-01-27 19:30:23,201 INFO AUTOPILOT RUN (multi-strategy)
-2026-01-27 19:30:23,201 INFO ==================================================
-2026-01-27 19:30:23,536 INFO --- Phase 1: Exit checks ---
-2026-01-27 19:30:23,958 INFO NVDA [momentum]: OK (P/L: -0.3%, stop: $179.60, MA: $184.75, ATR×2.0)
-2026-01-27 19:30:24,325 INFO Cancelled stop order 1ad48ce6-f5d3-4fc0-be1a-60c877f6372e for NVDA
-2026-01-27 19:30:24,411 INFO Stop placed: SELL 2.0 NVDA @ $179.60 id=25d23110-d03e-4699-9213-b48e1c2c45a5
-2026-01-27 19:30:24,505 INFO --- Phase 2: Entry scan (3 slots) ---
-2026-01-27 19:30:24,829 INFO No new entry signals from router.
-2026-01-27 19:30:25,039 INFO --- Summary ---
-2026-01-27 19:30:25,039 INFO Equity: $100,168.89 | Cash: $99,790.65
-2026-01-27 19:30:25,039 INFO   NVDA [momentum]: 2.0 @ $189.12 (-0.3%)
-2026-01-27 19:30:25,039 INFO Trades today: 10
-2026-01-27 19:30:25,039 INFO   Strategy momentum: 10 closed, $-722.12 realized, 60% win
-2026-01-27 19:30:25,044 INFO Autopilot run complete.
+2026-01-30 19:10:07,622 INFO   GME [?]: 420.0 @ $23.93 (+0.6%)
+2026-01-30 19:10:07,622 INFO   KLAC [unknown]: 2.0 @ $1453.45 (-7.8%)
+2026-01-30 19:10:07,622 INFO   LHX [unknown]: 8.0 @ $344.06 (-2.6%)
+2026-01-30 19:10:07,622 INFO   LRCX [unknown]: 13.0 @ $238.54 (-4.2%)
+2026-01-30 19:10:07,622 INFO   META [momentum]: 73.0 @ $717.93 (+6.9%)
+2026-01-30 19:10:07,622 INFO   MU [unknown]: 8.0 @ $430.43 (-4.2%)
+2026-01-30 19:10:07,622 INFO   NVDA [momentum]: 2.0 @ $191.81 (+1.2%)
+2026-01-30 19:10:07,622 INFO   SLB [unknown]: 62.0 @ $48.04 (-0.2%)
+2026-01-30 19:10:07,622 INFO   TER [unknown]: 13.0 @ $244.14 (-3.3%)
+2026-01-30 19:10:07,622 INFO   XLE [momentum]: 1.0 @ $50.48 (-0.6%)
+2026-01-30 19:10:07,622 INFO   XOM [momentum]: 1.0 @ $139.92 (+0.1%)
+2026-01-30 19:10:07,622 INFO Trades today: 0
+2026-01-30 19:10:07,622 INFO   Strategy momentum: 10 closed, $-722.12 realized, 60% win
+2026-01-30 19:10:07,622 INFO   Strategy unknown: 0 closed, $+0.00 realized, 0% win
+2026-01-30 19:10:07,623 INFO Autopilot run complete.
 ```
 
 ---
 
 ## System Status
 
-- **Last autopilot run:** 2026-01-27T19:30:25.039256
-- **Trades today:** 10
-- **Stopped out today:** AMD, XOM, META, AMZN, MSFT, AAPL, XLE, GOOGL, TSLA
+- **Last autopilot run:** 2026-01-30T19:10:07.622979
+- **Trades today:** 0
 - **Errors:** none in recent log
 
 ### High Water Marks
 
-- NVDA: $189.53
+- NVDA: $192.96
+- META: $740.26
+- XLE: $51.05
+- XOM: $141.03
+- AMAT: $340.15
+- AMD: $244.04
+- DOW: $27.91
+- FCX: $61.53
+- KLAC: $1556.78
+- LHX: $352.56
+- LRCX: $251.52
+- MU: $452.32
+- SLB: $48.13
+- TER: $254.29

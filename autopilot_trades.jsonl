@@ -15,3 +15,7 @@
 {"time": "2026-01-27T19:10:24.341959", "action": "SELL", "symbol": "GOOGL", "qty": 117.0, "price": 335.55, "reason": "stop hit at $335.48 (ATR\u00d72.0)", "strategy": "momentum"}
 {"time": "2026-01-27T19:15:25.701873", "action": "BUY", "symbol": "TSLA", "qty": 90, "price": 439.0, "reason": "Router entry: momentum str=+0.30, up 3.0%", "strategy": "momentum"}
 {"time": "2026-01-27T19:20:24.687818", "action": "SELL", "symbol": "TSLA", "qty": 90.0, "price": 431.4589, "reason": "closed below 10 MA ($439.57)", "strategy": "momentum"}
+{"time": "2026-01-28T17:55:40.762446", "action": "BUY", "symbol": "META", "qty": 73, "price": 676.5, "reason": "Router entry: momentum str=+0.95, up 9.5%", "strategy": "momentum"}
+{"time": "2026-01-29T16:11:37.539877", "action": "BUY", "symbol": "XOM", "qty": 1, "price": 139.74, "reason": "Router entry: momentum str=+0.44, up 4.4%", "strategy": "momentum"}
+{"time": "2026-01-29T16:11:38.108849", "action": "BUY", "symbol": "XLE", "qty": 1, "price": 50.79, "reason": "Router entry: momentum str=+0.36, up 3.6%", "strategy": "momentum"}
+{"time": "2026-02-04T18:30:21.903534", "action": "SELL", "symbol": "NVDA", "qty": 2.0, "price": 173.7299, "reason": "signal exit: strength=-0.43, down -4.3%", "strategy": "momentum"}

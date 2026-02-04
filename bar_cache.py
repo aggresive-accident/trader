@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# See CODEBASE.md for public interface documentation
 """
 bar_cache.py - Local parquet cache for historical daily bars.
 

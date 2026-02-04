@@ -576,6 +576,58 @@ python3 ledger_xs.py pnl        # P&L calculation
 
 ---
 
+## yf_cache.py
+
+**Purpose:** yfinance data layer with parquet caching. Provides fundamental data (PE, PB, dividend yield, etc.) and alternative bar source.
+
+**Public functions:**
+- `fetch_bars(symbol: str, period: str = '5y', force_refresh: bool = False) -> pd.DataFrame` - Fetch OHLCV bars
+- `fetch_info(symbol: str, force_refresh: bool = False) -> dict` - Fetch fundamental info
+- `get_sp500_symbols() -> list[str]` - Get S&P 500 constituents from Wikipedia
+- `get_cached_symbols() -> list[str]` - List symbols with cached data
+- `clear_cache(symbol: str = None)` - Clear cache (all or specific symbol)
+- `seed_cache(symbols: list = None, period: str = '5y')` - Pre-fetch multiple symbols
+- `cache_status() -> dict` - Get cache statistics
+
+**DataFrame schema (fetch_bars):** `date`, `open`, `high`, `low`, `close`, `volume`
+
+**Info dict keys (fetch_info):**
+```python
+['marketCap', 'trailingPE', 'forwardPE', 'priceToBook', 'dividendYield',
+ 'returnOnEquity', 'returnOnAssets', 'debtToEquity', 'sector', 'industry', ...]
+```
+
+**Example:**
+```python
+from yf_cache import fetch_bars, fetch_info
+
+# Get bars
+df = fetch_bars('AAPL')
+
+# Get fundamentals
+info = fetch_info('AAPL')
+pe = info.get('trailingPE')
+div_yield = info.get('dividendYield')
+```
+
+**CLI:**
+```bash
+python3 yf_cache.py status            # cache stats
+python3 yf_cache.py seed              # seed S&P 500
+python3 yf_cache.py fetch AAPL        # fetch and display bars
+python3 yf_cache.py info AAPL         # fetch and display info
+python3 yf_cache.py sp500             # list S&P 500 symbols
+python3 yf_cache.py clear [symbol]    # clear cache
+```
+
+**Cache location:** `data/yf_cache/` (bars in parquet, info in JSON)
+
+**Cache freshness:** Bars refresh after 1 day, info after 7 days
+
+**Dependencies:** yfinance, pandas, pyarrow
+
+---
+
 ## Quick Reference
 
 | Task | Command |
@@ -591,3 +643,5 @@ python3 ledger_xs.py pnl        # P&L calculation
 | XS status | `python3 autopilot_xs.py status` |
 | XS rankings | `python3 autopilot_xs.py rankings` |
 | XS rebalance | `python3 autopilot_xs.py run` |
+| YF cache status | `python3 yf_cache.py status` |
+| YF seed S&P 500 | `python3 yf_cache.py seed` |

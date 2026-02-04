@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# See CODEBASE.md for public interface documentation
 """
 ledger.py - Position Ledger with Strategy Attribution
 

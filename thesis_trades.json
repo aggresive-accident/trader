@@ -7,13 +7,15 @@
     {
       "id": "GME-2026-01",
       "symbol": "GME",
-      "status": "pending",
+      "status": "open",
       "entry": {
         "date": "2026-01-28",
-        "price": null,
-        "shares": 476,
-        "notional": 10000,
-        "method": "market open"
+        "price": 23.8,
+        "shares": 420,
+        "notional": 9996.0,
+        "method": "market open",
+        "order_id": "4d6450a7-14f5-4fcf-a264-9fc64200af3c",
+        "timestamp": "2026-01-28T14:56:11.192582"
       },
       "thesis": {
         "summary": "Insider buying + settlement pressure + technical breakout",
@@ -26,9 +28,27 @@
         "time_condition": "no $25 by this date"
       },
       "targets": [
-        {"label": "T1", "price": 30.0, "trim_pct": 25, "hit": false, "hit_date": null},
-        {"label": "T2", "price": 50.0, "trim_pct": 25, "hit": false, "hit_date": null},
-        {"label": "T3", "price": null, "trim_pct": 50, "hit": false, "hit_date": null}
+        {
+          "label": "T1",
+          "price": 30.0,
+          "trim_pct": 25,
+          "hit": false,
+          "hit_date": null
+        },
+        {
+          "label": "T2",
+          "price": 50.0,
+          "trim_pct": 25,
+          "hit": false,
+          "hit_date": null
+        },
+        {
+          "label": "T3",
+          "price": null,
+          "trim_pct": 50,
+          "hit": false,
+          "hit_date": null
+        }
       ],
       "outcome": {
         "realized_pnl": 0,
