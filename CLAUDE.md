@@ -31,6 +31,8 @@ python3 state_export.py           # generate context
 
 # Debugging
 python3 ledger.py status          # position ownership
+python3 decision_journal.py list  # today's decisions
+python3 health.py                 # strategy health check
 systemctl --user status trader-monitor.timer
 ```
 
@@ -80,6 +82,7 @@ df['date'] = pd.to_datetime(df['date'])
 | `trades_ledger.json` | Position ownership, trade history | ledger.py |
 | `thesis_trades.json` | Discretionary trades | thesis_execute.py |
 | `router_config.json` | Strategy allocation, symbols, exclusions | Manual |
+| `decisions/*.jsonl` | Daily decision logs | decision_journal.py |
 | `state/strategic_context.md` | Cross-session context | state_export.py |
 
 ## Principles (Summary)

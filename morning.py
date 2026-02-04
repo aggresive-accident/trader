@@ -402,6 +402,48 @@ def check_strategy_health() -> dict:
         return {"status": "error", "error": str(e), "signals": []}
 
 
+def check_decision_journal() -> dict:
+    """Check decision journal status."""
+    try:
+        from decision_journal import get_journal_summary_for_morning, DecisionJournal
+        summary = get_journal_summary_for_morning()
+
+        # Get health status
+        journal = DecisionJournal()
+        today = datetime.now().strftime("%Y-%m-%d")
+        today_file = journal.decisions_dir / f"{today}.jsonl"
+
+        last_entry_age = None
+        if today_file.exists():
+            mtime = datetime.fromtimestamp(today_file.stat().st_mtime)
+            last_entry_age = (datetime.now() - mtime).total_seconds() / 3600
+
+        # Format last XS summary
+        last_xs_summary = None
+        if summary.get("last_xs"):
+            d = summary["last_xs"]
+            buys = len(d.outcome.get("buys", []))
+            sells = len(d.outcome.get("sells", []))
+            holds = len(d.outcome.get("holds", []))
+            last_xs_summary = {
+                "date": summary["last_xs_date"],
+                "buys": buys,
+                "sells": sells,
+                "holds": holds,
+                "executed": d.executed,
+            }
+
+        return {
+            "last_xs": last_xs_summary,
+            "yesterday_count": summary["yesterday_count"],
+            "yesterday_by_strategy": summary["yesterday_by_strategy"],
+            "last_entry_age_hours": last_entry_age,
+            "healthy": last_entry_age is None or last_entry_age < 24,
+        }
+    except Exception as e:
+        return {"error": str(e), "healthy": False}
+
+
 def detect_anomalies() -> dict:
     """Flag orphan positions, failed runs, log errors."""
     anomalies = []
@@ -612,6 +654,36 @@ def build_report(data: dict) -> str:
             lines.append(f"- {prefix} {sig['message']}")
     lines.append("")
 
+    # Decision Journal
+    journal = data.get("decision_journal", {})
+    lines.append("## Decision Journal")
+    if journal.get("error"):
+        lines.append(f"**ERROR:** {journal['error']}")
+    else:
+        # Last XS rebalance
+        if journal.get("last_xs"):
+            xs = journal["last_xs"]
+            lines.append(f"Last XS rebalance: {xs['date']} (+{xs['buys']} -{xs['sells']} ={xs['holds']})")
+        else:
+            lines.append("Last XS rebalance: none found")
+
+        # Yesterday's decisions
+        y_count = journal.get("yesterday_count", 0)
+        y_by_strat = journal.get("yesterday_by_strategy", {})
+        if y_count > 0:
+            strat_str = ", ".join(f"{k}: {v}" for k, v in y_by_strat.items())
+            lines.append(f"Yesterday: {y_count} decisions ({strat_str})")
+        else:
+            lines.append("Yesterday: 0 decisions")
+
+        # Health
+        age = journal.get("last_entry_age_hours")
+        if age is not None:
+            lines.append(f"Journal health: OK (last entry {age:.1f}h ago)")
+        else:
+            lines.append("Journal health: OK (no entries today)")
+    lines.append("")
+
     # Anomalies
     anom = data.get("anomalies", {})
     if anom.get("count", 0) > 0:
@@ -661,7 +733,23 @@ def print_quiet(data: dict):
     elif health_status == "warning":
         health_str = " | health:WARN"
 
-    print(f"morning | {equity} ({pl_str}) | {sync} | timer:{timer} | issues:{issues}{mem_warn}{xs_str}{health_str}")
+    # Journal status
+    journal = data.get("decision_journal", {})
+    journal_str = ""
+    if journal.get("last_xs"):
+        days_ago = 0
+        if journal["last_xs"].get("date"):
+            from datetime import datetime
+            last_date = datetime.fromisoformat(journal["last_xs"]["date"])
+            days_ago = (datetime.now() - last_date).days
+        if days_ago == 0:
+            journal_str = " | xs:today"
+        elif days_ago <= 7:
+            journal_str = f" | xs:{days_ago}d-ago"
+        else:
+            journal_str = f" | xs:{days_ago}d-ago!"
+
+    print(f"morning | {equity} ({pl_str}) | {sync} | timer:{timer} | issues:{issues}{mem_warn}{xs_str}{health_str}{journal_str}")
 
 
 def main():
@@ -683,6 +771,7 @@ def main():
     data["autopilot"] = check_autopilot()
     data["autopilot_xs"] = check_autopilot_xs()
     data["strategy_health"] = check_strategy_health()
+    data["decision_journal"] = check_decision_journal()
     data["anomalies"] = detect_anomalies()
 
     # Determine exit code

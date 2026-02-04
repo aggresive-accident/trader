@@ -356,6 +356,151 @@ def cmd_search(symbol: str):
         print(f"  {date} {d.strategy}/{d.action}: {d.reasoning[:60]}...")
 
 
+def cmd_summary(last_xs: bool = False, today: bool = False):
+    """Summary output for ceremony scripts."""
+    journal = DecisionJournal()
+    now = datetime.now()
+    today_str = now.strftime("%Y-%m-%d")
+
+    if last_xs:
+        # Find most recent XS rebalance
+        for i in range(30):  # Search last 30 days
+            date = (now - timedelta(days=i)).strftime("%Y-%m-%d")
+            decisions = journal.get_decisions(date, strategy="xs")
+            xs_decisions = [d for d in decisions if d.action == "rebalance"]
+            if xs_decisions:
+                d = xs_decisions[-1]  # Most recent
+                # Parse outcome
+                buys = len(d.outcome.get("buys", []))
+                sells = len(d.outcome.get("sells", []))
+                holds = len(d.outcome.get("holds", []))
+                ts = d.timestamp.split("T")
+                date_part = ts[0]
+                time_part = ts[1][:5] if len(ts) > 1 else ""
+                status = "executed" if d.executed else "FAILED"
+                print(f"{date_part} {time_part} | rebalance | +{buys} -{sells} ={holds} | {status}")
+                return
+        print("No XS rebalance found in last 30 days")
+
+    elif today:
+        decisions = journal.get_decisions(today_str)
+        if not decisions:
+            print(f"0 decisions today")
+            return
+
+        # Count by strategy
+        by_strategy = {}
+        executed = 0
+        for d in decisions:
+            by_strategy[d.strategy] = by_strategy.get(d.strategy, 0) + 1
+            if d.executed:
+                executed += 1
+
+        strat_str = " ".join(f"{k}:{v}" for k, v in sorted(by_strategy.items()))
+        print(f"{len(decisions)} decisions | {strat_str} | {executed}/{len(decisions)} executed")
+
+    else:
+        # Default: show stats for today
+        cmd_list(today_str)
+
+
+def cmd_health() -> int:
+    """Check journal health for ceremony scripts. Returns exit code."""
+    journal = DecisionJournal()
+    now = datetime.now()
+    today_str = now.strftime("%Y-%m-%d")
+    today_file = journal.decisions_dir / f"{today_str}.jsonl"
+
+    # Market hours check (9:35 ET to 16:00 ET, simplified)
+    market_open = 9 <= now.hour < 16
+
+    issues = []
+
+    # Check if today's file exists after market open
+    if market_open and now.hour >= 10 and not today_file.exists():
+        issues.append("no journal today")
+
+    # Check staleness
+    last_entry_age = None
+    if today_file.exists():
+        mtime = datetime.fromtimestamp(today_file.stat().st_mtime)
+        last_entry_age = (now - mtime).total_seconds() / 3600
+
+        if market_open and last_entry_age > 2:
+            issues.append(f"stale ({last_entry_age:.1f}h)")
+
+    if issues:
+        print(f"WARN: {', '.join(issues)}")
+        return 1
+    elif last_entry_age is not None:
+        print(f"OK (last entry {last_entry_age:.1f}h ago)")
+        return 0
+    else:
+        print("OK (no entries expected yet)")
+        return 0
+
+
+def get_journal_summary_for_morning() -> dict:
+    """Get journal summary for morning.py integration."""
+    journal = DecisionJournal()
+    now = datetime.now()
+    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # Find last XS rebalance
+    last_xs = None
+    last_xs_date = None
+    for i in range(30):
+        date = (now - timedelta(days=i)).strftime("%Y-%m-%d")
+        decisions = journal.get_decisions(date, strategy="xs")
+        xs_decisions = [d for d in decisions if d.action == "rebalance"]
+        if xs_decisions:
+            last_xs = xs_decisions[-1]
+            last_xs_date = date
+            break
+
+    # Yesterday's count
+    yesterday_decisions = journal.get_decisions(yesterday)
+    by_strategy = {}
+    for d in yesterday_decisions:
+        by_strategy[d.strategy] = by_strategy.get(d.strategy, 0) + 1
+
+    return {
+        "last_xs": last_xs,
+        "last_xs_date": last_xs_date,
+        "yesterday_count": len(yesterday_decisions),
+        "yesterday_by_strategy": by_strategy,
+    }
+
+
+def get_journal_summary_for_evening() -> dict:
+    """Get journal summary for evening.py integration."""
+    journal = DecisionJournal()
+    today = datetime.now().strftime("%Y-%m-%d")
+    decisions = journal.get_decisions(today)
+
+    by_strategy = {}
+    by_action = {}
+    failures = []
+    notable = []
+
+    for d in decisions:
+        by_strategy[d.strategy] = by_strategy.get(d.strategy, 0) + 1
+        by_action[d.action] = by_action.get(d.action, 0) + 1
+        if not d.executed:
+            failures.append(d)
+        if d.action in ("rebalance", "entry"):
+            notable.append(d)
+
+    return {
+        "total": len(decisions),
+        "by_strategy": by_strategy,
+        "by_action": by_action,
+        "failures": failures,
+        "notable": notable,
+        "executed": len(decisions) - len(failures),
+    }
+
+
 def main():
     import argparse
 
@@ -372,6 +517,12 @@ def main():
     search_p = subparsers.add_parser("search", help="Search by symbol")
     search_p.add_argument("symbol", help="Symbol to search")
 
+    summary_p = subparsers.add_parser("summary", help="Summary for ceremonies")
+    summary_p.add_argument("--last-xs", action="store_true", help="Show last XS rebalance")
+    summary_p.add_argument("--today", action="store_true", help="Show today's summary")
+
+    health_p = subparsers.add_parser("health", help="Check journal health")
+
     args = parser.parse_args()
 
     if args.command == "list":
@@ -380,6 +531,11 @@ def main():
         cmd_show(args.date, args.index)
     elif args.command == "search":
         cmd_search(args.symbol)
+    elif args.command == "summary":
+        cmd_summary(last_xs=args.last_xs, today=args.today)
+    elif args.command == "health":
+        exit_code = cmd_health()
+        sys.exit(exit_code)
     else:
         parser.print_help()
 

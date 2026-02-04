@@ -87,9 +87,12 @@ python3 state_export.py               # write to state/strategic_context.md
 | `thesis_execute.py` | Manual thesis trade execution. Buy/sell/status with `--confirm` flag. |
 | `thesis_trades.json` | Thesis trade state: entries, targets, invalidation, outcomes. |
 | `autopilot_xs.py` | Cross-sectional momentum autopilot. Top-10 factor portfolio, 30% allocation. |
-| `ledger_xs.py` | XS position ledger. Tracks holdings, rebalances, P&L separately from zoo. |
 | `autopilot_xs_state.json` | XS state: holdings, last rebalance, rankings history. |
 | `ledger_xs.json` | XS trade history and position tracking. |
+| `decision_journal.py` | Decision logging for autopilot traceability. Records context, reasoning, outcomes. |
+| `health.py` | Strategy health monitoring. Compares live vs backtest, emits signals to organism. |
+| `morning.py` | Pre-market ceremony. Health checks, reconciliation, anomaly detection. |
+| `evening.py` | EOD ceremony. Activity summary, equity delta, state archiving, decision review. |
 
 ### Strategies
 
@@ -122,6 +125,7 @@ python3 state_export.py               # write to state/strategic_context.md
 | `high_water_marks.json` | JSON | `monitor.py` (peak prices for trailing stops) |
 | `thesis_trades.json` | JSON | `thesis_execute.py` (discretionary trades) |
 | `thesis_trades.log` | Text log | `thesis_execute.py` (execution log) |
+| `decisions/*.jsonl` | JSONL | `decision_journal.py` (daily decision logs) |
 | `data/bars/*.parquet` | Parquet | `bar_cache.py` (historical OHLCV) |
 
 ### Results

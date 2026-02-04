@@ -311,6 +311,7 @@ def reconcile_positions() -> dict
 def get_overnight_changes() -> dict
 def get_pending_thesis() -> dict
 def check_autopilot() -> dict
+def check_decision_journal() -> dict  # Decision journal status
 def detect_anomalies() -> dict
 def build_report(data: dict) -> str
 ```
@@ -341,6 +342,8 @@ python3 morning.py --json       # structured JSON
 def get_days_activity() -> dict
 def compare_to_previous_eod() -> dict
 def check_thesis_targets() -> dict
+def check_autopilot_xs() -> dict
+def check_decision_journal() -> dict  # Today's decisions summary
 def check_log_rotation() -> dict
 def archive_snapshot() -> dict
 def build_report(data: dict) -> str
@@ -526,53 +529,102 @@ python3 autopilot_xs.py run --force # force any day
 python3 autopilot_xs.py history     # past rebalances
 ```
 
-**Dependencies:** trader, bar_cache, ledger_xs
+**Dependencies:** trader, bar_cache
+
+**Ledger:** XS positions tracked in `ledger_xs.json` (inline, no separate module)
 
 ---
 
-## ledger_xs.py
+## decision_journal.py
 
-**Purpose:** Cross-sectional position ledger. Separate from zoo ledger.
+**Purpose:** Decision logging system for autopilot traceability. Records trading decisions with context, reasoning, and outcomes.
 
-**Class: `LedgerXS`**
+**Classes:**
 ```python
-class LedgerXS:
-    def __init__(self, path: str = "ledger_xs.json")
+@dataclass
+class Decision:
+    strategy: str           # xs | zoo | thesis
+    action: str             # rebalance | entry | exit | hold
+    symbol: Optional[str]
+    context: dict           # Rankings, positions, allocation info
+    outcome: dict           # Buys, sells, holds, orders proposed
+    reasoning: str          # Human-readable explanation
+    executed: bool = True
+    execution_note: str = ""
+    timestamp: str          # ISO format
 
-    def record_buy(self, symbol: str, shares: float, price: float, reason: str = "") -> dict
-    def record_sell(self, symbol: str, shares: float, price: float, reason: str = "") -> dict
-
-    def get_position(self, symbol: str) -> Optional[dict]
-    def get_all_positions() -> dict[str, dict]
-
-    def get_trades() -> list[dict]
-    def calculate_pnl() -> dict  # realized + unrealized
-
-    def summary() -> dict
+class DecisionJournal:
+    def __init__(self, base_dir: Path = None)
+    def log(self, decision: Decision) -> Path
+    def get_decisions(self, date: str = None) -> list[Decision]
+    def search(self, symbol: str) -> list[Decision]
+    def get_last_by_strategy(self, strategy: str) -> Optional[Decision]
 ```
 
-**Data file:** `ledger_xs.json`
-```json
-{
-  "positions": {
-    "MU": {"shares": 50, "avg_price": 98.50, "opened_at": "..."},
-    ...
-  },
-  "trades": [
-    {"timestamp": "...", "symbol": "MU", "action": "BUY", "shares": 50, "price": 98.50, "reason": "rebalance"}
-  ]
-}
+**Helper functions:**
+```python
+def build_xs_rebalance_decision(...) -> Decision
+def get_journal_summary_for_morning() -> dict
+def get_journal_summary_for_evening() -> dict
 ```
+
+**Data files:** `decisions/YYYY-MM-DD.jsonl` (one file per day, append-only)
 
 **CLI:**
 ```bash
-python3 ledger_xs.py status     # summary
-python3 ledger_xs.py positions  # open positions
-python3 ledger_xs.py trades     # trade history
-python3 ledger_xs.py pnl        # P&L calculation
+python3 decision_journal.py list             # today's decisions
+python3 decision_journal.py list 2026-02-03  # specific date
+python3 decision_journal.py show 2026-02-03 0  # show decision at index
+python3 decision_journal.py search MU        # find decisions for symbol
+python3 decision_journal.py summary          # recent summary
+python3 decision_journal.py health           # check for issues
 ```
 
 **Dependencies:** None (stdlib only)
+
+---
+
+## health.py
+
+**Purpose:** Strategy health monitoring. Compares live performance to backtest expectations, emits signals to organism.
+
+**Key functions:**
+```python
+def get_strategy_stats() -> dict
+    """Get per-strategy realized P&L and trade counts from ledger"""
+
+def get_overall_stats() -> dict
+    """Aggregate stats across all strategies"""
+
+def check_deviation(actual: float, expected: float, metric_name: str) -> dict | None
+    """Check if metric deviates from expected value"""
+
+def run_health_check() -> dict
+    """Run full health check, return findings"""
+
+def emit_signals(health_data: dict) -> Path
+    """Write health signals to ~/.organism/signals/trader_health.json"""
+```
+
+**Configuration (constants):**
+```python
+EXPECTED = {
+    "overall": {"win_rate": 0.47, "profit_factor": 2.92}
+}
+WARNING_THRESHOLD = 0.15  # 15% deviation
+PROBLEM_THRESHOLD = 0.25  # 25% deviation
+MIN_TRADES = 20           # Minimum trades before checking
+```
+
+**Signal file:** `~/.organism/signals/trader_health.json`
+
+**CLI:**
+```bash
+python3 health.py          # run health check + emit signals
+python3 health.py --json   # JSON output
+```
+
+**Dependencies:** ledger
 
 ---
 

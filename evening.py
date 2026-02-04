@@ -373,6 +373,15 @@ def check_autopilot_xs() -> dict:
     }
 
 
+def check_decision_journal() -> dict:
+    """Get today's decision journal summary for evening report."""
+    try:
+        from decision_journal import get_journal_summary_for_evening
+        return get_journal_summary_for_evening()
+    except Exception as e:
+        return {"error": str(e), "total": 0}
+
+
 # === Output ===
 
 def build_report(data: dict) -> str:
@@ -461,6 +470,30 @@ def build_report(data: dict) -> str:
                 lines.append(f"| {h['symbol']} | {h['shares']:.0f} | ${h['entry_price']:.2f} | ${h['current_price']:.2f} | ${h['pnl']:+,.2f} | {h['pnl_pct']:+.1f}% | ${h['value']:,.0f} |")
             lines.append("")
 
+    # Decision Journal
+    journal = data.get("decision_journal", {})
+    if journal.get("total", 0) > 0 or journal.get("error"):
+        lines.append("## Today's Decisions")
+        if journal.get("error"):
+            lines.append(f"**ERROR:** {journal['error']}")
+        else:
+            lines.append(f"Total: {journal['total']} decisions")
+            by_strat = journal.get("by_strategy", {})
+            if by_strat:
+                for strat, count in by_strat.items():
+                    by_action = journal.get("by_action", {})
+                    lines.append(f"  - {strat}: {count}")
+            lines.append(f"Execution: {journal.get('executed', 0)}/{journal['total']} successful")
+            if journal.get("failures"):
+                lines.append("**Failures:**")
+                for f in journal["failures"][:5]:
+                    lines.append(f"  - {f.strategy}/{f.action}: {f.execution_note[:60]}")
+            if journal.get("notable"):
+                lines.append("Notable:")
+                for n in journal["notable"][:3]:
+                    lines.append(f"  - {n.strategy}/{n.action}: {n.reasoning[:60]}...")
+        lines.append("")
+
     # Log rotation
     logs = data.get("logs", {})
     needs_rotation = [name for name, info in logs.items() if info.get("needs_rotation")]
@@ -509,7 +542,12 @@ def print_quiet(data: dict):
         xs_pnl = xs.get("unrealized_pnl", 0)
         xs_str = f" | xs:{xs_count}/10 (${xs_pnl:+,.0f})"
 
-    print(f"evening | {equity} ({pl_str}) | trades:{trades} | vs_prev:{delta_str} | stops:{stops} tgts:{targets} | archived:{archived}{xs_str}")
+    # Decision journal
+    journal = data.get("decision_journal", {})
+    journal_count = journal.get("total", 0)
+    journal_str = f" | decisions:{journal_count}" if journal_count > 0 else ""
+
+    print(f"evening | {equity} ({pl_str}) | trades:{trades} | vs_prev:{delta_str} | stops:{stops} tgts:{targets} | archived:{archived}{xs_str}{journal_str}")
 
 
 def main():
@@ -527,6 +565,7 @@ def main():
     data["equity_delta"] = compare_to_previous_eod()
     data["thesis_targets"] = check_thesis_targets()
     data["autopilot_xs"] = check_autopilot_xs()
+    data["decision_journal"] = check_decision_journal()
     data["logs"] = check_log_rotation()
     data["archive"] = archive_snapshot()
 
