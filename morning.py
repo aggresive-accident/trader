@@ -385,6 +385,23 @@ def check_autopilot_xs() -> dict:
     }
 
 
+def check_strategy_health() -> dict:
+    """Run strategy health check and return status."""
+    try:
+        from health import run_health_check, emit_signals
+        health = run_health_check()
+        emit_signals(health)  # Write to organism signals dir
+        return {
+            "status": health["status"],
+            "signals": health["signals"],
+            "total_trades": health["overall"]["trades"] if health["overall"] else 0,
+            "min_threshold": health["min_trades_threshold"],
+            "strategies": list(health["by_strategy"].keys()),
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e), "signals": []}
+
+
 def detect_anomalies() -> dict:
     """Flag orphan positions, failed runs, log errors."""
     anomalies = []
@@ -578,6 +595,23 @@ def build_report(data: dict) -> str:
         lines.append("Not initialized (no positions)")
         lines.append("")
 
+    # Strategy Health
+    health = data.get("strategy_health", {})
+    status = health.get("status", "unknown")
+    lines.append("## Strategy Health")
+    if status == "error":
+        lines.append(f"**ERROR:** {health.get('error', 'unknown')}")
+    elif health.get("total_trades", 0) < health.get("min_threshold", 20):
+        lines.append(f"Monitoring ({health.get('total_trades', 0)}/{health.get('min_threshold', 20)} trades for threshold)")
+    elif status == "healthy":
+        lines.append("All strategies within expected parameters")
+    else:
+        lines.append(f"**Status: {status.upper()}**")
+        for sig in health.get("signals", []):
+            prefix = "!" if sig["level"] == "problem" else "⚠"
+            lines.append(f"- {prefix} {sig['message']}")
+    lines.append("")
+
     # Anomalies
     anom = data.get("anomalies", {})
     if anom.get("count", 0) > 0:
@@ -618,7 +652,16 @@ def print_quiet(data: dict):
         xs_rebal = " REBAL!" if xs.get("rebalance_due_today") else ""
         xs_str = f" | xs:{xs_count}/10{xs_rebal}"
 
-    print(f"morning | {equity} ({pl_str}) | {sync} | timer:{timer} | issues:{issues}{mem_warn}{xs_str}")
+    # Health status
+    health = data.get("strategy_health", {})
+    health_status = health.get("status", "?")
+    health_str = ""
+    if health_status == "problem":
+        health_str = " | health:PROBLEM!"
+    elif health_status == "warning":
+        health_str = " | health:WARN"
+
+    print(f"morning | {equity} ({pl_str}) | {sync} | timer:{timer} | issues:{issues}{mem_warn}{xs_str}{health_str}")
 
 
 def main():
@@ -639,6 +682,7 @@ def main():
     data["thesis"] = get_pending_thesis()
     data["autopilot"] = check_autopilot()
     data["autopilot_xs"] = check_autopilot_xs()
+    data["strategy_health"] = check_strategy_health()
     data["anomalies"] = detect_anomalies()
 
     # Determine exit code
@@ -646,11 +690,13 @@ def main():
         not data["account"].get("connected")
         or data["anomalies"].get("count", 0) > 0
         or data.get("overnight", {}).get("error")
+        or data["strategy_health"].get("status") == "problem"
     )
     has_warnings = (
         data["memory"].get("warning")
         or not data["reconciliation"].get("in_sync")
         or not data["autopilot"].get("timer_active")
+        or data["strategy_health"].get("status") == "warning"
     )
 
     exit_code = 2 if has_errors else (1 if has_warnings else 0)
