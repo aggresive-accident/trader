@@ -38,6 +38,9 @@ fi
 # Run autopilot (monitors exits, places stops, enters new positions)
 python3 autopilot.py run 2>&1
 
+# Run XS rebalance (no-ops unless Monday 9:35 ET + market open)
+python3 autopilot_xs.py run 2>&1
+
 # Reset daily state at market open
 if [ "$HOUR" -eq 9 ] && [ "$MIN" -lt 35 ]; then
     python3 autopilot.py reset 2>&1

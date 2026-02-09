@@ -1,0 +1,33 @@
+{
+  "generated": "2026-02-09T20:26:49.490447",
+  "results": [
+    {
+      "name": "R039_xs_megacap_10_top4",
+      "period": "2022-01-03 to 2025-12-31",
+      "total_return": -26.01,
+      "annual_return": -7.3,
+      "sharpe": 0.003,
+      "max_drawdown": 69.66,
+      "profit_factor": 0.841,
+      "num_trades": 223,
+      "win_rate": 44.8,
+      "avg_trade_pnl": -116.63,
+      "turnover_pct": 50.9,
+      "spy_return": 43.81
+    },
+    {
+      "name": "R039_xs_megacap_10_full",
+      "period": "2022-01-03 to 2025-12-31",
+      "total_return": 16.3,
+      "annual_return": 3.87,
+      "sharpe": 0.287,
+      "max_drawdown": 44.12,
+      "profit_factor": 1.605,
+      "num_trades": 10,
+      "win_rate": 50.0,
+      "avg_trade_pnl": 1630.32,
+      "turnover_pct": 0.5,
+      "spy_return": 43.81
+    }
+  ]
+}

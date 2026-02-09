@@ -227,12 +227,21 @@ class StrategyRouter:
         """
         Calculate position size based on strategy allocation.
 
+        Sizing logic:
+        1. Strategy gets a % of total_capital (from allocation config)
+        2. Per-position cap = strategy_capital / max_positions
+        3. Capped by available cash (buying power) from broker
+        4. risk_per_trade scales down from the per-position cap
+
         Returns:
             {
                 "shares": int,
                 "notional": float,
                 "strategy_allocation": float,
                 "strategy_capital": float,
+                "available_capital": float,
+                "used_capital": float,
+                "max_per_position": float,
             }
         """
         from trader import Trader
@@ -242,13 +251,18 @@ class StrategyRouter:
         account = trader.get_account()
         ledger = Ledger()
 
-        total_capital = self.config.get("total_capital", account["portfolio_value"])
+        # Use live equity, fall back to config
+        total_capital = account["portfolio_value"]
         allocation = self.config.get("allocation", {})
+        max_positions = self.config.get("max_positions", 4)
         risk_per_trade = self.config.get("risk_per_trade", 0.03)
 
         # Strategy's allocated capital
         strat_alloc = allocation.get(signal.strategy, 0.33)
         strategy_capital = total_capital * strat_alloc
+
+        # Per-position cap: divide strategy allocation evenly across max slots
+        max_per_position = strategy_capital / max_positions
 
         # Capital already used by this strategy
         strategy_positions = ledger.get_positions_by_strategy(signal.strategy)
@@ -259,11 +273,15 @@ class StrategyRouter:
         # Available capital for this strategy
         available = max(0, strategy_capital - used_capital)
 
-        # Position size (risk-based)
-        max_position = available * risk_per_trade / risk_per_trade  # Full available
-        max_position = min(max_position, available)
+        # Position size: capped by per-position limit and risk_per_trade
+        position_budget = min(available, max_per_position)
+        position_budget *= risk_per_trade / 0.03  # scale: 0.03 = full budget, lower = smaller
 
-        shares = int(max_position / price) if price > 0 else 0
+        # Cap by actual cash available from broker
+        cash = account.get("cash", 0)
+        position_budget = min(position_budget, cash)
+
+        shares = int(position_budget / price) if price > 0 else 0
 
         return {
             "shares": shares,
@@ -272,6 +290,7 @@ class StrategyRouter:
             "strategy_capital": strategy_capital,
             "available_capital": available,
             "used_capital": used_capital,
+            "max_per_position": max_per_position,
         }
 
     def get_sized_entries(self) -> list[dict]:

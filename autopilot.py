@@ -332,6 +332,23 @@ def buy_position(client: TradingClient, ledger: Ledger, symbol: str,
                  reason: str, strategy: str, exit_mode: str = "stops") -> bool:
     """Market buy, record in ledger, and optionally place broker stop."""
     try:
+        # Pre-trade guards (SIG_003)
+        from structural_health import check_pretrade_concentration, check_pretrade_cash
+        trader = Trader()
+        positions = trader.get_positions()
+        account = trader.get_account()
+
+        conc = check_pretrade_concentration(
+            symbol, qty, price, positions, account["portfolio_value"])
+        if not conc["allowed"]:
+            log.warning(f"BLOCKED: {conc['reason']}")
+            return False
+
+        cash = check_pretrade_cash(qty, price, account["cash"])
+        if not cash["allowed"]:
+            log.warning(f"BLOCKED: {cash['reason']}")
+            return False
+
         if DRY_RUN:
             log.info(f"[DRY RUN] Would BUY {qty} {symbol} @ ~${price:.2f} [{strategy}] exit_mode={exit_mode}")
             return False
@@ -369,6 +386,16 @@ def buy_position(client: TradingClient, ledger: Ledger, symbol: str,
 
 # === Reconciliation ===
 
+def load_xs_symbols() -> set:
+    """Load current XS holdings from ledger_xs.json."""
+    xs_path = Path(__file__).parent / "ledger_xs.json"
+    if xs_path.exists():
+        with open(xs_path) as f:
+            xs_data = json.load(f)
+        return {p["symbol"] for p in xs_data.get("positions", [])}
+    return set()
+
+
 def reconcile_ledger(trader: Trader, ledger: Ledger, exclusions: set = None):
     """
     Ensure ledger matches Alpaca's actual positions.
@@ -377,9 +404,10 @@ def reconcile_ledger(trader: Trader, ledger: Ledger, exclusions: set = None):
     - Positions in Alpaca but not in ledger (orphans from crashes/manual trades)
     - Positions in ledger but not in Alpaca (stale from external sells)
 
-    Excluded symbols (thesis/manual trades) are ignored entirely.
+    Excluded symbols (thesis/manual trades) and XS holdings are ignored entirely.
     """
     exclusions = exclusions or set()
+    xs_symbols = load_xs_symbols()
     alpaca_positions = trader.get_positions()
     alpaca_symbols = {p["symbol"] for p in alpaca_positions}
     ledger_symbols = set(ledger.positions.keys())
@@ -389,6 +417,9 @@ def reconcile_ledger(trader: Trader, ledger: Ledger, exclusions: set = None):
         sym = p["symbol"]
         if sym in exclusions:
             log.info(f"RECONCILE: {sym} excluded (thesis/manual) - skipping")
+            continue
+        if sym in xs_symbols:
+            log.info(f"RECONCILE: {sym} belongs to XS (in ledger_xs.json) - skipping")
             continue
         if sym not in ledger_symbols:
             log.warning(f"RECONCILE: {sym} in Alpaca but not in ledger. Importing as 'unknown'.")
@@ -447,8 +478,15 @@ def run():
 
     max_positions = config.get("max_positions", 4)
     exclusions = set(config.get("exclusions", []))
+
+    # Dynamically exclude XS holdings — prevents momentum from trading XS-managed symbols
+    xs_symbols = load_xs_symbols()
+    if xs_symbols:
+        exclusions = exclusions | xs_symbols
+        log.info(f"XS holdings excluded: {', '.join(sorted(xs_symbols))}")
+
     if exclusions:
-        log.info(f"Exclusions (thesis/manual): {', '.join(sorted(exclusions))}")
+        log.info(f"Total exclusions: {', '.join(sorted(exclusions))}")
 
     # Check market
     clock = trader.get_clock()
@@ -518,13 +556,19 @@ def run():
                 place_stop(client, symbol, qty, result["stop"])
 
     # === PHASE 2: CHECK ENTRIES ===
+    # New entries disabled (R039: momentum on mega-caps has no edge, PF 0.84).
+    # Existing positions (NVDA, XOM, XLE) exit on normal signals.
+    # XS handles all new position entry via autopilot_xs.py.
     positions = trader.get_positions()
-    current_symbols = [p["symbol"] for p in positions]
     managed_count = sum(1 for p in positions if p["symbol"] not in exclusions)
-    available_slots = max_positions - managed_count
+    momentum_positions = [p for p in positions
+                          if ledger.get_position_strategy(p["symbol"]) == "momentum"]
+    log.info(f"--- Phase 2: Entries disabled (momentum wind-down, "
+             f"{len(momentum_positions)} positions exiting on signal) ---")
 
-    if available_slots > 0:
-        log.info(f"--- Phase 2: Entry scan ({available_slots} slots) ---")
+    if False:  # preserved for future use
+        current_symbols = [p["symbol"] for p in positions]
+        available_slots = max_positions - managed_count
 
         # Don't re-enter stocks we got stopped out of today, or excluded symbols
         blocked = set(state.get("stopped_out", [])) | exclusions

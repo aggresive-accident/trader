@@ -654,6 +654,23 @@ def build_report(data: dict) -> str:
             lines.append(f"- {prefix} {sig['message']}")
     lines.append("")
 
+    # Structural Health
+    struct = data.get("structural_health", [])
+    if struct:
+        lines.append("## Structural Health")
+        for check in struct:
+            name = check["name"]
+            status = check["status"]
+            detail = check.get("detail", "")
+            if status == "PASS":
+                prefix = "PASS"
+            elif status == "WARNING":
+                prefix = "WARN"
+            else:
+                prefix = "PROBLEM"
+            lines.append(f"- {name}: **{prefix}** — {detail}")
+        lines.append("")
+
     # Decision Journal
     journal = data.get("decision_journal", {})
     lines.append("## Decision Journal")
@@ -774,18 +791,31 @@ def main():
     data["decision_journal"] = check_decision_journal()
     data["anomalies"] = detect_anomalies()
 
+    # Structural health checks (SIG_003)
+    try:
+        from structural_health import run_all_checks
+        data["structural_health"] = run_all_checks()
+    except Exception as e:
+        data["structural_health"] = [{"name": "error", "status": "PROBLEM", "detail": str(e)}]
+
     # Determine exit code
+    struct_checks = data.get("structural_health", [])
+    has_struct_problem = any(c["status"] == "PROBLEM" for c in struct_checks)
+    has_struct_warning = any(c["status"] == "WARNING" for c in struct_checks)
+
     has_errors = (
         not data["account"].get("connected")
         or data["anomalies"].get("count", 0) > 0
         or data.get("overnight", {}).get("error")
         or data["strategy_health"].get("status") == "problem"
+        or has_struct_problem
     )
     has_warnings = (
         data["memory"].get("warning")
         or not data["reconciliation"].get("in_sync")
         or not data["autopilot"].get("timer_active")
         or data["strategy_health"].get("status") == "warning"
+        or has_struct_warning
     )
 
     exit_code = 2 if has_errors else (1 if has_warnings else 0)

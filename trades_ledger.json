@@ -361,156 +361,6 @@
       "pnl_pct": null
     },
     {
-      "id": "T0025",
-      "timestamp": "2026-01-30T14:35:05.690433",
-      "symbol": "AMAT",
-      "action": "BUY",
-      "qty": 9.0,
-      "price": 334.93,
-      "strategy": "unknown",
-      "reason": "reconciled from Alpaca (orphan)",
-      "order_id": "",
-      "closed_at": null,
-      "close_price": null,
-      "pnl": null,
-      "pnl_pct": null
-    },
-    {
-      "id": "T0026",
-      "timestamp": "2026-01-30T14:35:05.690785",
-      "symbol": "AMD",
-      "action": "BUY",
-      "qty": 12.0,
-      "price": 241.0625,
-      "strategy": "unknown",
-      "reason": "reconciled from Alpaca (orphan)",
-      "order_id": "",
-      "closed_at": null,
-      "close_price": null,
-      "pnl": null,
-      "pnl_pct": null
-    },
-    {
-      "id": "T0027",
-      "timestamp": "2026-01-30T14:35:05.693364",
-      "symbol": "DOW",
-      "action": "BUY",
-      "qty": 110.0,
-      "price": 27.58,
-      "strategy": "unknown",
-      "reason": "reconciled from Alpaca (orphan)",
-      "order_id": "",
-      "closed_at": null,
-      "close_price": null,
-      "pnl": null,
-      "pnl_pct": null
-    },
-    {
-      "id": "T0028",
-      "timestamp": "2026-01-30T14:35:05.693764",
-      "symbol": "FCX",
-      "action": "BUY",
-      "qty": 50.0,
-      "price": 61.6998,
-      "strategy": "unknown",
-      "reason": "reconciled from Alpaca (orphan)",
-      "order_id": "",
-      "closed_at": null,
-      "close_price": null,
-      "pnl": null,
-      "pnl_pct": null
-    },
-    {
-      "id": "T0029",
-      "timestamp": "2026-01-30T14:35:05.694190",
-      "symbol": "KLAC",
-      "action": "BUY",
-      "qty": 2.0,
-      "price": 1575.71,
-      "strategy": "unknown",
-      "reason": "reconciled from Alpaca (orphan)",
-      "order_id": "",
-      "closed_at": null,
-      "close_price": null,
-      "pnl": null,
-      "pnl_pct": null
-    },
-    {
-      "id": "T0030",
-      "timestamp": "2026-01-30T14:35:05.694464",
-      "symbol": "LHX",
-      "action": "BUY",
-      "qty": 8.0,
-      "price": 353.33,
-      "strategy": "unknown",
-      "reason": "reconciled from Alpaca (orphan)",
-      "order_id": "",
-      "closed_at": null,
-      "close_price": null,
-      "pnl": null,
-      "pnl_pct": null
-    },
-    {
-      "id": "T0031",
-      "timestamp": "2026-01-30T14:35:05.694770",
-      "symbol": "LRCX",
-      "action": "BUY",
-      "qty": 13.0,
-      "price": 248.879231,
-      "strategy": "unknown",
-      "reason": "reconciled from Alpaca (orphan)",
-      "order_id": "",
-      "closed_at": null,
-      "close_price": null,
-      "pnl": null,
-      "pnl_pct": null
-    },
-    {
-      "id": "T0032",
-      "timestamp": "2026-01-30T14:35:05.695102",
-      "symbol": "MU",
-      "action": "BUY",
-      "qty": 8.0,
-      "price": 449.44,
-      "strategy": "unknown",
-      "reason": "reconciled from Alpaca (orphan)",
-      "order_id": "",
-      "closed_at": null,
-      "close_price": null,
-      "pnl": null,
-      "pnl_pct": null
-    },
-    {
-      "id": "T0033",
-      "timestamp": "2026-01-30T14:35:05.695365",
-      "symbol": "SLB",
-      "action": "BUY",
-      "qty": 62.0,
-      "price": 48.145806,
-      "strategy": "unknown",
-      "reason": "reconciled from Alpaca (orphan)",
-      "order_id": "",
-      "closed_at": null,
-      "close_price": null,
-      "pnl": null,
-      "pnl_pct": null
-    },
-    {
-      "id": "T0034",
-      "timestamp": "2026-01-30T14:35:05.695824",
-      "symbol": "TER",
-      "action": "BUY",
-      "qty": 13.0,
-      "price": 252.5,
-      "strategy": "unknown",
-      "reason": "reconciled from Alpaca (orphan)",
-      "order_id": "",
-      "closed_at": null,
-      "close_price": null,
-      "pnl": null,
-      "pnl_pct": null
-    },
-    {
       "id": "T0035",
       "timestamp": "2026-02-04T18:30:21.903115",
       "symbol": "NVDA",
@@ -524,19 +374,39 @@
       "close_price": 173.7299,
       "pnl": -31.740200000000016,
       "pnl_pct": -8.370305907173003
+    },
+    {
+      "id": "T0036",
+      "timestamp": "2026-02-06T14:30:52.232516",
+      "symbol": "META",
+      "action": "SELL",
+      "qty": 73.0,
+      "price": 669.085,
+      "strategy": "momentum",
+      "reason": "signal exit: strength=-0.92, down -9.2%",
+      "order_id": "c071069e-ad0a-4957-a1ef-8ee2ed6de6b6",
+      "closed_at": "2026-02-06T14:30:52.232522",
+      "close_price": 669.085,
+      "pnl": -541.2949999999973,
+      "pnl_pct": -1.0960827790095995
+    },
+    {
+      "id": "T0027",
+      "timestamp": "2026-02-09T19:25:41.119411",
+      "symbol": "NVDA",
+      "action": "BUY",
+      "qty": 260,
+      "price": 191.21,
+      "strategy": "momentum",
+      "reason": "Router entry: momentum str=+0.30, up 3.0%",
+      "order_id": "209f336b-eba2-40c4-b6bb-60f6d3e04c45",
+      "closed_at": null,
+      "close_price": null,
+      "pnl": null,
+      "pnl_pct": null
     }
   ],
   "positions": {
-    "META": {
-      "symbol": "META",
-      "qty": 73,
-      "avg_entry": 676.5,
-      "strategy": "momentum",
-      "opened_at": "2026-01-28T17:55:40.762160",
-      "trade_ids": [
-        "T0022"
-      ]
-    },
     "XOM": {
       "symbol": "XOM",
       "qty": 1,
@@ -557,106 +427,16 @@
         "T0024"
       ]
     },
-    "AMAT": {
-      "symbol": "AMAT",
-      "qty": 9.0,
-      "avg_entry": 334.93,
-      "strategy": "unknown",
-      "opened_at": "2026-01-30T14:35:05.690422",
-      "trade_ids": [
-        "T0025"
-      ]
-    },
-    "AMD": {
-      "symbol": "AMD",
-      "qty": 12.0,
-      "avg_entry": 241.0625,
-      "strategy": "unknown",
-      "opened_at": "2026-01-30T14:35:05.690779",
-      "trade_ids": [
-        "T0026"
-      ]
-    },
-    "DOW": {
-      "symbol": "DOW",
-      "qty": 110.0,
-      "avg_entry": 27.58,
-      "strategy": "unknown",
-      "opened_at": "2026-01-30T14:35:05.693357",
+    "NVDA": {
+      "symbol": "NVDA",
+      "qty": 260,
+      "avg_entry": 191.21,
+      "strategy": "momentum",
+      "opened_at": "2026-02-09T19:25:41.119397",
       "trade_ids": [
         "T0027"
       ]
-    },
-    "FCX": {
-      "symbol": "FCX",
-      "qty": 50.0,
-      "avg_entry": 61.6998,
-      "strategy": "unknown",
-      "opened_at": "2026-01-30T14:35:05.693759",
-      "trade_ids": [
-        "T0028"
-      ]
-    },
-    "KLAC": {
-      "symbol": "KLAC",
-      "qty": 2.0,
-      "avg_entry": 1575.71,
-      "strategy": "unknown",
-      "opened_at": "2026-01-30T14:35:05.694186",
-      "trade_ids": [
-        "T0029"
-      ]
-    },
-    "LHX": {
-      "symbol": "LHX",
-      "qty": 8.0,
-      "avg_entry": 353.33,
-      "strategy": "unknown",
-      "opened_at": "2026-01-30T14:35:05.694453",
-      "trade_ids": [
-        "T0030"
-      ]
-    },
-    "LRCX": {
-      "symbol": "LRCX",
-      "qty": 13.0,
-      "avg_entry": 248.879231,
-      "strategy": "unknown",
-      "opened_at": "2026-01-30T14:35:05.694765",
-      "trade_ids": [
-        "T0031"
-      ]
-    },
-    "MU": {
-      "symbol": "MU",
-      "qty": 8.0,
-      "avg_entry": 449.44,
-      "strategy": "unknown",
-      "opened_at": "2026-01-30T14:35:05.695098",
-      "trade_ids": [
-        "T0032"
-      ]
-    },
-    "SLB": {
-      "symbol": "SLB",
-      "qty": 62.0,
-      "avg_entry": 48.145806,
-      "strategy": "unknown",
-      "opened_at": "2026-01-30T14:35:05.695361",
-      "trade_ids": [
-        "T0033"
-      ]
-    },
-    "TER": {
-      "symbol": "TER",
-      "qty": 13.0,
-      "avg_entry": 252.5,
-      "strategy": "unknown",
-      "opened_at": "2026-01-30T14:35:05.695820",
-      "trade_ids": [
-        "T0034"
-      ]
     }
   },
-  "updated_at": "2026-02-04T18:30:21.903257"
+  "updated_at": "2026-02-09T19:25:41.119499"
 }

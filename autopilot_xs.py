@@ -49,7 +49,7 @@ log = logging.getLogger("autopilot_xs")
 
 # === Configuration ===
 
-XS_ALLOCATION_PCT = 0.30      # 30% of portfolio for XS
+XS_ALLOCATION_PCT = 0.70      # 70% of portfolio for XS (expanded from 30%, R039)
 XS_TOP_N = 10                 # Hold top 10 positions
 XS_BUY_THRESHOLD = 10         # Buy if rank <= 10
 XS_SELL_THRESHOLD = 15        # Sell if rank > 15 (persistence band)

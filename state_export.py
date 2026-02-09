@@ -120,6 +120,19 @@ def section_positions():
     ledger = _load_json(BASE / "trades_ledger.json")
     ledger_positions = ledger.get("positions", {}) if ledger else {}
 
+    # Merge XS positions for strategy attribution
+    xs_ledger = _load_json(BASE / "ledger_xs.json")
+    xs_symbols = {}
+    if xs_ledger:
+        xs_symbols = {p["symbol"] for p in xs_ledger.get("positions", [])}
+
+    # Thesis trades for attribution
+    thesis_data = _load_json(BASE / "thesis_trades.json")
+    thesis_symbols = set()
+    if thesis_data:
+        thesis_symbols = {t["symbol"] for t in thesis_data.get("trades", [])
+                          if t.get("status") == "open"}
+
     if not positions:
         return "Current Positions", "_No open positions._"
 
@@ -131,7 +144,14 @@ def section_positions():
     total_pnl = 0
     for p in positions:
         sym = p["symbol"]
-        strategy = ledger_positions.get(sym, {}).get("strategy", "unknown")
+        if sym in ledger_positions:
+            strategy = ledger_positions[sym].get("strategy", "unknown")
+        elif sym in xs_symbols:
+            strategy = "xs"
+        elif sym in thesis_symbols:
+            strategy = "thesis"
+        else:
+            strategy = "unknown"
         mv = float(p["qty"]) * p["current_price"]
         pnl = float(p["qty"]) * (p["current_price"] - p["avg_entry"])
         pnl_pct = p["unrealized_pl_pct"]

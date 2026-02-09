@@ -19,3 +19,5 @@
 {"time": "2026-01-29T16:11:37.539877", "action": "BUY", "symbol": "XOM", "qty": 1, "price": 139.74, "reason": "Router entry: momentum str=+0.44, up 4.4%", "strategy": "momentum"}
 {"time": "2026-01-29T16:11:38.108849", "action": "BUY", "symbol": "XLE", "qty": 1, "price": 50.79, "reason": "Router entry: momentum str=+0.36, up 3.6%", "strategy": "momentum"}
 {"time": "2026-02-04T18:30:21.903534", "action": "SELL", "symbol": "NVDA", "qty": 2.0, "price": 173.7299, "reason": "signal exit: strength=-0.43, down -4.3%", "strategy": "momentum"}
+{"time": "2026-02-06T14:30:52.232895", "action": "SELL", "symbol": "META", "qty": 73.0, "price": 669.085, "reason": "signal exit: strength=-0.92, down -9.2%", "strategy": "momentum"}
+{"time": "2026-02-09T19:25:41.119700", "action": "BUY", "symbol": "NVDA", "qty": 260, "price": 191.21, "reason": "Router entry: momentum str=+0.30, up 3.0%", "strategy": "momentum"}
