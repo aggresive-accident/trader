@@ -190,6 +190,7 @@ class StrategyRouter:
     def get_entry_signals(self) -> list[StrategySignal]
     def get_exit_signals(self) -> list[StrategySignal]
     def calculate_position_size(self, signal: StrategySignal, price: float) -> dict
+    def get_sized_entries(self) -> list[dict]
 ```
 
 **Config file:** `router_config.json`
@@ -216,8 +217,32 @@ for s in signals:
 
 # Size a position
 sizing = r.calculate_position_size(signals[0], price=150.0)
-print(f"Buy {sizing['shares']} shares")
+print(f"Buy {sizing['shares']} shares (max {sizing['max_per_position']:,.0f} per position)")
+
+# Get sized entries (signals + sizing combined)
+entries = r.get_sized_entries()
+for e in entries:
+    print(f"{e['signal']['symbol']}: {e['sizing']['shares']} shares @ ${e['price']:.2f}")
 ```
+
+**`calculate_position_size()` return schema:**
+```python
+{
+    "shares": int,
+    "notional": float,
+    "strategy_allocation": float,
+    "strategy_capital": float,
+    "available_capital": float,
+    "used_capital": float,
+    "max_per_position": float,  # strategy_capital / max_positions
+}
+```
+
+**Sizing logic:**
+1. Strategy gets a % of live equity (from allocation config)
+2. Per-position cap = strategy_capital / max_positions
+3. Capped by available cash (buying power) from broker
+4. risk_per_trade scales down from the per-position cap
 
 **Dependencies:** strategies module
 
@@ -229,11 +254,13 @@ print(f"Buy {sizing['shares']} shares")
 
 **Key functions:**
 ```python
-def run()           # Main loop - one pass
+def run()           # Main loop - one pass (Phase 2 entries currently disabled)
 def reset_daily()   # Reset daily state (trades_today, stopped_out)
 def load_state() -> dict
 def save_state(state: dict)
-def reconcile_ledger(trader: Trader, ledger: Ledger, exclusions: set)
+def load_xs_symbols() -> set  # Load XS holdings from ledger_xs.json (prevents split-brain)
+def reconcile_ledger(trader: Trader, ledger: Ledger, exclusions: set)  # Skips XS symbols
+def buy_position(client, ledger, symbol, qty, price, stop_price, reason, strategy, exit_mode="stops") -> bool
 def check_exit(bars, entry_price, high_water, exit_params, ...) -> dict
 def fetch_bars(data_client, symbol: str, days: int = 60) -> list
 ```
@@ -253,8 +280,10 @@ python3 autopilot.py run --dry-run  # log only, no trades
 
 **Key behavior:**
 - Auto-resets daily state if `last_run` was a different day
-- Excludes symbols in `config.exclusions` (thesis trades)
+- Excludes symbols in `config.exclusions` (thesis trades) + dynamic XS exclusion via `load_xs_symbols()`
 - Signal-based exits: no broker stops, exits when signal reverses
+- Phase 2 (new entries) currently disabled (momentum wind-down, R039)
+- Pre-trade guards in `buy_position()`: checks concentration limit (25%) and cash via `structural_health`
 
 **Dependencies:** trader, ledger, router, strategies
 
@@ -311,9 +340,10 @@ def reconcile_positions() -> dict
 def get_overnight_changes() -> dict
 def get_pending_thesis() -> dict
 def check_autopilot() -> dict
+def check_strategy_health() -> dict   # Strategy performance vs expectations
 def check_decision_journal() -> dict  # Decision journal status
 def detect_anomalies() -> dict
-def build_report(data: dict) -> str
+def build_report(data: dict) -> str   # Includes structural health section
 ```
 
 **Output files:**
@@ -327,9 +357,9 @@ python3 morning.py --quiet      # one-line summary
 python3 morning.py --json       # structured JSON
 ```
 
-**Exit codes:** 0=healthy, 1=warnings, 2=errors
+**Exit codes:** 0=healthy, 1=warnings, 2=errors (includes structural health: PROBLEM=2, WARNING=1)
 
-**Dependencies:** trader, ledger
+**Dependencies:** trader, ledger, structural_health
 
 ---
 
@@ -379,7 +409,7 @@ def generate_context() -> str   # Returns full markdown
 
 **Sections generated:**
 - Strategy Zoo configuration
-- Current positions with P&L
+- Current positions with P&L (reads all three ledgers: trades_ledger.json, ledger_xs.json, thesis_trades.json)
 - Account state
 - Performance by strategy
 - Backtest results
@@ -396,6 +426,48 @@ python3 state_export.py --stdout     # print to stdout
 ```
 
 **Dependencies:** trader, ledger
+
+---
+
+## structural_health.py
+
+**Purpose:** Structural health assertions. Checks for concentration risk, orphan positions, stale rebalances, and sizing violations. Used by morning.py (reporting) and autopilot.py (pre-trade guards).
+
+**Key functions:**
+```python
+def check_concentration(positions: list, equity: float, limit: float = 0.25) -> dict
+    """No single position > limit% of account equity."""
+    # Returns {"status": "PASS"|"PROBLEM", "violations": [...], "max_pct": float}
+
+def check_attribution(positions: list) -> dict
+    """Every Alpaca position must have a strategy owner in one of the ledgers."""
+    # Returns {"status": "PASS"|"WARNING", "unattributed": [...]}
+
+def check_xs_freshness(max_days: int = 8) -> dict
+    """XS must have rebalanced within max_days."""
+    # Returns {"status": "PASS"|"WARNING", "days_since": float|None}
+
+def check_pretrade_concentration(symbol: str, order_shares: int,
+                                 order_price: float, positions: list,
+                                 equity: float, limit: float = 0.25) -> dict
+    """Pre-trade guard: would this order push a position past the concentration limit?"""
+    # Returns {"allowed": bool, "reason": str, "projected_pct": float}
+
+def check_pretrade_cash(order_shares: int, order_price: float, cash: float) -> dict
+    """Pre-trade guard: does the account have enough cash for this order?"""
+    # Returns {"allowed": bool, "reason": str, "order_cost": float, "cash": float}
+
+def run_all_checks() -> list
+    """Run all structural health checks. Returns list of check results."""
+    # Each: {"name": str, "status": "PASS"|"WARNING"|"PROBLEM", "detail": str}
+```
+
+**Constants:**
+```python
+CONCENTRATION_LIMIT = 0.25  # No single position > 25% of account
+```
+
+**Dependencies:** trader (for run_all_checks only)
 
 ---
 
@@ -500,7 +572,7 @@ def cmd_status() / cmd_rankings() / cmd_preview() / cmd_run()
 
 **Configuration (constants in file):**
 ```python
-XS_ALLOCATION_PCT = 0.30      # 30% of portfolio
+XS_ALLOCATION_PCT = 0.70      # 70% of portfolio (expanded from 30%, R039)
 XS_TOP_N = 10                 # Hold top 10
 XS_LOOKBACK = 25              # 25-day momentum
 XS_BUY_THRESHOLD = 10         # Buy if rank ≤ 10
@@ -555,7 +627,7 @@ class Decision:
 
 class DecisionJournal:
     def __init__(self, base_dir: Path = None)
-    def log(self, decision: Decision) -> Path
+    def log(self, decision: Decision) -> None
     def get_decisions(self, date: str = None) -> list[Decision]
     def search(self, symbol: str) -> list[Decision]
     def get_last_by_strategy(self, strategy: str) -> Optional[Decision]

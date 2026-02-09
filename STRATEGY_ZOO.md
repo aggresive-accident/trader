@@ -8,14 +8,16 @@ Rules-based strategies that run on autopilot. Each strategy implements `signal(b
 
 | Strategy | Allocation | Exit Mode | Status |
 |----------|-----------|-----------|--------|
-| momentum (SimpleMomentum) | 50% | signal | active |
-| bollinger (BollingerReversion) | 50% | signal | active |
+| momentum (SimpleMomentum) | 50% | signal | wind-down (exits only, R039) |
+| bollinger (BollingerReversion) | 50% | signal | active (no current positions) |
 | adaptive (AdaptiveStrategy) | -- | -- | disabled |
 
 **Universe:** META, NVDA, AMD, GOOGL, AAPL, MSFT, AMZN, XOM, XLE, TSLA
 **Max positions:** 4
 **Risk per trade:** 3%
-**Total capital:** $100k
+**Capital:** Live equity (was hardcoded $100k, now uses broker account value)
+
+**Note:** Zoo shares the account with Cross-Sectional XS autopilot (70% allocation). Zoo's effective capital is ~30%. New momentum entries are disabled per R039 (mega-cap momentum PF 0.84, no edge). Existing positions exit on normal signals.
 
 ## How router_config.json Works
 
@@ -26,7 +28,7 @@ Rules-based strategies that run on autopilot. Each strategy implements `signal(b
   "symbols": ["META", "NVDA", ...],
   "max_positions": 4,
   "risk_per_trade": 0.03,
-  "total_capital": 100000,
+  "total_capital": 100000,  // vestigial — router.py uses live equity
   "exit_defaults": {
     "exit_mode": "signal",
     "max_hold_days": 20,
@@ -92,13 +94,13 @@ exit_mode: "stops"
 
 ## Autopilot Execution Flow
 
-Every 5 minutes (systemd timer `trader-monitor.timer`):
+Every 5 minutes (systemd timer `trader-monitor.timer` → `cron_monitor.sh`):
 
 ```
 1. Load config, init router, init ledger
-2. Check exclusions list
+2. Check exclusions list + dynamically exclude XS holdings (load_xs_symbols())
 3. Check market clock (skip if closed)
-4. Reconcile ledger vs Alpaca (skip excluded symbols)
+4. Reconcile ledger vs Alpaca (skip excluded + XS symbols)
 5. PHASE 1 - EXIT CHECKS:
    For each Alpaca position (skip excluded):
      - Get owning strategy from ledger
@@ -109,14 +111,11 @@ Every 5 minutes (systemd timer `trader-monitor.timer`):
      - If exit: market sell, record in ledger
      - If signal mode: no broker stop refresh
      - If stop mode: cancel old stop, place new one
-6. PHASE 2 - ENTRY SCAN:
-   - Count managed positions (exclude thesis)
-   - If slots available:
-     - router.get_entry_signals() scans all strategies
-     - Filter out current holdings, stopped-out today, excluded
-     - Size via router.calculate_position_size()
-     - Buy, record in ledger
-     - Signal mode: no broker stop
+6. PHASE 2 - ENTRY SCAN (currently disabled):
+   - Momentum wind-down: no new entries (R039)
+   - When enabled: count managed positions, scan for signals,
+     size via calculate_position_size() (per-position cap + cash guard),
+     pre-trade guards block oversized orders (structural_health.py)
 7. Log summary
 ```
 

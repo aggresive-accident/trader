@@ -7,7 +7,6 @@
   "symbols": ["META", "NVDA", "AMD", "GOOGL", "AAPL", "MSFT", "AMZN", "XOM", "XLE", "TSLA"],
   "max_positions": 4,
   "risk_per_trade": 0.03,
-  "total_capital": 100000,
   "exit_defaults": {
     "exit_mode": "signal",
     "max_hold_days": 20,

@@ -3,8 +3,8 @@
 Automated multi-strategy paper trading system on Alpaca. $100k paper account.
 
 Three parallel tracks:
-- **Strategy Zoo**: rules-based strategies (momentum, bollinger) running on autopilot via systemd timer
-- **Cross-Sectional Autopilot**: top-10 momentum factor portfolio, 30% allocation, Monday rebalance
+- **Strategy Zoo**: rules-based strategies (momentum, bollinger) on autopilot via systemd timer. Currently in wind-down (exits only, no new entries per R039)
+- **Cross-Sectional Autopilot**: top-10 momentum factor portfolio, 70% allocation, Monday rebalance via systemd timer
 - **Thesis Trades**: discretionary positions managed manually via `thesis_execute.py`
 
 Plus offline research:
@@ -17,19 +17,22 @@ Plus offline research:
                     │           Alpaca Paper API           │
                     └──────┬──────────────┬───────────────┘
                            │              │
-              ┌────────────┴──┐    ┌────────────────┐    ┌──────────────────┐
-              │  autopilot.py │    │autopilot_xs.py │    │ thesis_execute.py │
-              │  (systemd 5m) │    │ (Monday 9:35)  │    │  (manual/claude)  │
-              └──┬────┬───┬──┘    └───────┬────────┘    └──────────────────┘
-                 │    │   │               │
-              ┌──┴────┴───┴───────────────┘
-                 │    │   │
-      ┌──────────┘    │   └──────────┐
-      │               │              │
- ┌────┴────┐   ┌──────┴──────┐  ┌───┴───────┐
- │router.py│   │  ledger.py  │  │ config.py │
- │ scans   │   │  ownership  │  │ API keys  │
- └────┬────┘   └─────────────┘  └───────────┘
+                    ┌──────┴──────────────┴───────┐
+                    │      cron_monitor.sh         │
+                    │   (systemd timer, every 5m)  │
+                    └──┬──────────────────────┬───┘
+                       │                      │
+              ┌────────┴──┐    ┌──────────────┴─┐    ┌──────────────────┐
+              │autopilot.py│   │autopilot_xs.py │    │ thesis_execute.py │
+              │ exits+guard│   │Monday rebalance│    │  (manual/claude)  │
+              └──┬────┬───┬┘   └───────┬────────┘    └──────────────────┘
+                 │    │   │            │
+      ┌──────────┘    │   └──────┐     │
+      │               │          │     │
+ ┌────┴────┐   ┌──────┴──────┐  ┌┴────┴──────────────┐
+ │router.py│   │  ledger.py  │  │structural_health.py│
+ │ scans   │   │  ownership  │  │  pre-trade guards  │
+ └────┬────┘   └─────────────┘  └────────────────────┘
       │
  ┌────┴──────────────┐
  │    strategies/     │
@@ -77,8 +80,9 @@ python3 state_export.py               # write to state/strategic_context.md
 
 | File | Purpose |
 |------|---------|
-| `autopilot.py` | Main trading loop. Runs every 5 min via systemd. Phase 1: exit checks. Phase 2: entry scans. |
-| `router.py` | Strategy scanner. Loads active strategies, fetches bars, returns attributed signals. |
+| `cron_monitor.sh` | Orchestrator script called by systemd timer every 5 min. Runs autopilot.py then autopilot_xs.py. |
+| `autopilot.py` | Main trading loop. Phase 1: exit checks. Phase 2: entries (currently disabled, wind-down). Pre-trade guards via structural_health. |
+| `router.py` | Strategy scanner. Loads active strategies, fetches bars, returns attributed signals. Position sizing with per-position caps and cash guards. |
 | `router_config.json` | Zoo configuration: active strategies, allocation, symbols, exit params, exclusions. |
 | `ledger.py` | Position ownership. Tracks which strategy owns which position. Persists to `trades_ledger.json`. |
 | `trader.py` | Low-level Alpaca API wrapper. Positions, account, quotes, orders. |
@@ -86,7 +90,8 @@ python3 state_export.py               # write to state/strategic_context.md
 | `monitor.py` | High water mark tracking for trailing stops. |
 | `thesis_execute.py` | Manual thesis trade execution. Buy/sell/status with `--confirm` flag. |
 | `thesis_trades.json` | Thesis trade state: entries, targets, invalidation, outcomes. |
-| `autopilot_xs.py` | Cross-sectional momentum autopilot. Top-10 factor portfolio, 30% allocation. |
+| `autopilot_xs.py` | Cross-sectional momentum autopilot. Top-10 factor portfolio, 70% allocation. Runs via cron_monitor.sh. |
+| `structural_health.py` | Structural assertions: concentration, attribution, XS freshness. Pre-trade guards for autopilot. Used by morning.py and autopilot.py. |
 | `autopilot_xs_state.json` | XS state: holdings, last rebalance, rankings history. |
 | `ledger_xs.json` | XS trade history and position tracking. |
 | `decision_journal.py` | Decision logging for autopilot traceability. Records context, reasoning, outcomes. |
@@ -112,7 +117,7 @@ python3 state_export.py               # write to state/strategic_context.md
 | `run_grid_test.py` | 5 factors x 4 turnover configs grid search. |
 | `run_walkforward.py` | Walk-forward validation + regime-switch test. |
 | `backtest_strategies.py` | Per-strategy backtest with configurable exits. |
-| `state_export.py` | Generates `state/strategic_context.md` with full system state. |
+| `state_export.py` | Generates `state/strategic_context.md` with full system state. Reads all three ledgers for strategy attribution. |
 
 ### State & Logs
 
@@ -142,9 +147,9 @@ python3 state_export.py               # write to state/strategic_context.md
 
 ### Zoo vs XS vs Thesis Trades
 
-**Zoo** (`autopilot.py` + `router.py`): Rules-based per-symbol strategies (momentum, bollinger). Strategies generate signals, autopilot executes. Every position is attributed to a strategy via the ledger. Runs every 5 minutes via systemd timer.
+**Zoo** (`autopilot.py` + `router.py`): Rules-based per-symbol strategies (momentum, bollinger). Strategies generate signals, autopilot executes. Every position is attributed to a strategy via the ledger. Runs every 5 minutes via systemd timer. **Currently in wind-down mode** — new entries disabled (R039 confirmed no edge, PF 0.84), existing positions (NVDA, XOM, XLE) exit on normal signals.
 
-**Cross-Sectional** (`autopilot_xs.py` + `ledger_xs.py`): Factor-based ranking portfolio. Ranks all 200 S&P symbols by 25-day momentum, buys top 10, equal weight. 30% of capital. Rebalances Monday 9:35 ET with persistence bands (buy ≤10, sell >15) to reduce turnover. Separate ledger from zoo.
+**Cross-Sectional** (`autopilot_xs.py` + `ledger_xs.json`): Factor-based ranking portfolio. Ranks all 200 S&P symbols by 25-day momentum, buys top 10, equal weight. **70% of capital** (expanded from 30% on 2026-02-09). Rebalances Monday 9:35 ET with persistence bands (buy ≤10, sell >15) to reduce turnover. Separate ledger from zoo. Runs via cron_monitor.sh (called every 5 min, but only rebalances on schedule).
 
 **Thesis** (`thesis_execute.py` + `thesis_trades.json`): Discretionary, manual. Human or Claude decides entry/exit based on a stated thesis with explicit invalidation criteria. Completely separate from both autopilots. Protected by the `exclusions` list in `router_config.json`.
 
@@ -158,7 +163,7 @@ ATR stop-based exits were proven to destroy all edge (PF 0.49 over 4 years). The
 
 ### Ledger Ownership
 
-Every zoo position is owned by exactly one strategy. `ledger.py` enforces single-strategy ownership per symbol. On every autopilot run, `reconcile_ledger()` syncs the ledger against Alpaca's actual positions. Orphan positions (manual buys, crashes) get imported as strategy "unknown" -- unless excluded.
+Every zoo position is owned by exactly one strategy. `ledger.py` enforces single-strategy ownership per symbol. On every autopilot run, `reconcile_ledger()` syncs the ledger against Alpaca's actual positions. Orphan positions (manual buys, crashes) get imported as strategy "unknown" -- unless excluded or owned by XS (checked via `load_xs_symbols()`).
 
 ### Exclusions
 
