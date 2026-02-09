@@ -360,7 +360,7 @@ def check_autopilot_xs() -> dict:
         t = Trader()
         account = t.get_account()
         total_equity = float(account["equity"])
-        xs_allocation_target = total_equity * 0.30  # 30%
+        xs_allocation_target = total_equity * 0.70  # 70% (expanded from 30%, R039)
         xs_allocation_used = total_value
         xs_allocation_pct = (total_value / xs_allocation_target * 100) if xs_allocation_target > 0 else 0
     except Exception:

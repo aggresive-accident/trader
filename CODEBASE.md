@@ -238,6 +238,23 @@ for e in entries:
 }
 ```
 
+**`get_sized_entries()` return schema:**
+```python
+[{
+    "signal": StrategySignal.to_dict(),  # strategy, symbol, strength, etc.
+    "price": float,                       # current ask price
+    "sizing": {                           # from calculate_position_size()
+        "shares": int,
+        "notional": float,
+        "strategy_allocation": float,
+        "strategy_capital": float,
+        "available_capital": float,
+        "used_capital": float,
+        "max_per_position": float,
+    }
+}]
+```
+
 **Sizing logic:**
 1. Strategy gets a % of live equity (from allocation config)
 2. Per-position cap = strategy_capital / max_positions

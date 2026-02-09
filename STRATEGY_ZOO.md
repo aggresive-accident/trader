@@ -28,7 +28,6 @@ Rules-based strategies that run on autopilot. Each strategy implements `signal(b
   "symbols": ["META", "NVDA", ...],
   "max_positions": 4,
   "risk_per_trade": 0.03,
-  "total_capital": 100000,  // vestigial — router.py uses live equity
   "exit_defaults": {
     "exit_mode": "signal",
     "max_hold_days": 20,

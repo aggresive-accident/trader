@@ -8,8 +8,8 @@ holds top 10 positions equal-weighted.
 Separate from per-symbol zoo autopilot - parallel system, no interference.
 
 Configuration:
-  - 30% capital allocation (percentage of total equity)
-  - Top 10 holdings, equal weight (3% each)
+  - 70% capital allocation (percentage of total equity, expanded from 30% per R039)
+  - Top 10 holdings, equal weight (7% each)
   - Weekly rebalance: Monday 9:35 ET
   - Persistence band: buy if rank ≤10, sell if rank >15
   - Excludes thesis trades

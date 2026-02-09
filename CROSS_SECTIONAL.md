@@ -177,15 +177,22 @@ Counterintuitively, the momentum leg generates most P/L (+$98k), while mean reve
 
 The edge is real but thin. 0.1% slippage per trade eats 45% of gross returns. After costs, mean reversion no longer beats SPY B&H. Reducing turnover (monthly rebalance, persistence bands) would improve net performance.
 
-## Path to Live Trading (Not Yet Implemented)
+## Live Trading (Implemented 2026-01)
 
-To move cross-sectional strategies to live trading:
+The cross-sectional autopilot is live via `autopilot_xs.py`:
 
-1. **Build a cross-sectional autopilot** -- separate from the zoo autopilot. Weekly rebalance, not 5-minute.
-2. **Implement as a new strategy in the zoo** -- `CrossSectionalMeanRev` that internally ranks the full universe and returns signals for top-N symbols.
-3. **Add slippage-aware sizing** -- account for expected 0.1% slippage in position sizing.
-4. **Limit universe to liquid names** -- filter by average daily volume > $10M.
-5. **Add persistence bands in live** -- reduce turnover from 97% to ~74% per rebalance.
-6. **Daily cache update** -- `python3 bar_cache.py update` via cron/timer.
+- **70% capital allocation** (expanded from 30% on 2026-02-09 per R039)
+- **Top 10 holdings**, equal weight, 200-symbol S&P universe
+- **Monday 9:35 ET rebalance** via `cron_monitor.sh` (systemd timer, every 5 min)
+- **Persistence bands**: buy if rank ≤10, sell if rank >15 (reduces turnover)
+- **Separate ledger**: `ledger_xs.json` (not in zoo's `trades_ledger.json`)
+- **Decision journal integration**: rebalance decisions logged to `decisions/`
 
-The infrastructure exists (bar_cache, cross_backtest framework, factor functions). The gap is the live execution loop and capital allocation between zoo and cross-sectional strategies.
+```bash
+python3 autopilot_xs.py status      # portfolio state + P&L
+python3 autopilot_xs.py rankings    # current factor rankings
+python3 autopilot_xs.py preview     # preview rebalance trades
+python3 autopilot_xs.py run --force # force rebalance any day
+```
+
+See `README.md` for full architecture and `CODEBASE.md` for API reference.
