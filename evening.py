@@ -494,6 +494,24 @@ def build_report(data: dict) -> str:
                     lines.append(f"  - {n.strategy}/{n.action}: {n.reasoning[:60]}...")
         lines.append("")
 
+    # XS Health Check (Monday only)
+    xs_health = data.get("xs_health")
+    if xs_health:
+        lines.append("## XS Health Check (R044)")
+        status = xs_health.get("status", "?").upper()
+        lines.append(f"- Status: {status}")
+        lines.append(f"- Week {xs_health.get('weeks_running', '?')} | {xs_health.get('closed_trades', 0)} closed trades")
+        passed = xs_health.get("checks_passed", 0)
+        warned = xs_health.get("checks_warned", 0)
+        problem = xs_health.get("checks_problem", 0)
+        insuf = xs_health.get("checks_insufficient", 0)
+        lines.append(f"- Checks: {passed} pass, {warned} warn, {problem} problem, {insuf} insufficient")
+        if xs_health.get("report_path"):
+            lines.append(f"- Report: {xs_health['report_path']}")
+        if xs_health.get("error"):
+            lines.append(f"- **ERROR:** {xs_health['error']}")
+        lines.append("")
+
     # Log rotation
     logs = data.get("logs", {})
     needs_rotation = [name for name, info in logs.items() if info.get("needs_rotation")]
@@ -547,7 +565,11 @@ def print_quiet(data: dict):
     journal_count = journal.get("total", 0)
     journal_str = f" | decisions:{journal_count}" if journal_count > 0 else ""
 
-    print(f"evening | {equity} ({pl_str}) | trades:{trades} | vs_prev:{delta_str} | stops:{stops} tgts:{targets} | archived:{archived}{xs_str}{journal_str}")
+    # XS health (Monday only)
+    xs_health = data.get("xs_health")
+    health_str = f" | xs_health:{xs_health['status']}" if xs_health else ""
+
+    print(f"evening | {equity} ({pl_str}) | trades:{trades} | vs_prev:{delta_str} | stops:{stops} tgts:{targets} | archived:{archived}{xs_str}{journal_str}{health_str}")
 
 
 def main():
@@ -568,6 +590,14 @@ def main():
     data["decision_journal"] = check_decision_journal()
     data["logs"] = check_log_rotation()
     data["archive"] = archive_snapshot()
+
+    # Monday XS health check (after rebalance day)
+    if datetime.now().weekday() == 0:  # Monday
+        try:
+            from xs_health_check import run_for_evening
+            data["xs_health"] = run_for_evening()
+        except Exception as e:
+            data["xs_health"] = {"status": "error", "error": str(e)}
 
     # Determine exit code
     has_errors = (

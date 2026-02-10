@@ -1,0 +1,10 @@
+{
+  "alerts": [],
+  "total_alerts": 0,
+  "false_positives": 0,
+  "recalibration_triggered": false,
+  "current_thresholds": {
+    "warning": 2.0,
+    "problem": 3.0
+  }
+}
