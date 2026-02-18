@@ -572,6 +572,30 @@ def print_quiet(data: dict):
     print(f"evening | {equity} ({pl_str}) | trades:{trades} | vs_prev:{delta_str} | stops:{stops} tgts:{targets} | archived:{archived}{xs_str}{journal_str}{health_str}")
 
 
+EQUITY_CURVE_FILE = BASE / "equity_curve.json"
+
+
+def _append_equity_curve(activity: dict):
+    """Append today's equity snapshot to equity_curve.json. Skips if today already recorded."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    equity = activity.get("equity", 0)
+    if not equity:
+        return
+
+    curve = _load_json(EQUITY_CURVE_FILE) or []
+    if any(entry.get("date") == today for entry in curve):
+        return
+
+    curve.append({
+        "date": today,
+        "equity": equity,
+        "cash": activity.get("cash", 0),
+        "positions_count": len(activity.get("positions", [])),
+    })
+
+    EQUITY_CURVE_FILE.write_text(json.dumps(curve, indent=2))
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Evening end-of-day wrapper")
@@ -590,6 +614,9 @@ def main():
     data["decision_journal"] = check_decision_journal()
     data["logs"] = check_log_rotation()
     data["archive"] = archive_snapshot()
+
+    # Append daily equity curve entry (idempotent)
+    _append_equity_curve(data.get("activity", {}))
 
     # Monday XS health check (after rebalance day)
     if datetime.now().weekday() == 0:  # Monday
