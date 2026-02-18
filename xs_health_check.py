@@ -689,6 +689,8 @@ def run_for_evening():
     try:
         health = run_xs_health_check()
         report_path = save_report(health)
+        health["report_path"] = str(report_path)
+        emit_signal(health)
         return {
             "status": health["status"],
             "weeks_running": health["live_metrics"]["weeks_running"],
@@ -709,7 +711,7 @@ def main():
     parser = argparse.ArgumentParser(description="XS weekly health check (R044)")
     parser.add_argument("command", nargs="?", default="check", choices=["check", "baselines"],
                         help="'check' (default) or 'baselines' to show distributions")
-    parser.add_argument("--emit-signal", action="store_true", help="Write organism signal")
+    parser.add_argument("--emit-signal", action="store_true", help="(deprecated, signal always emitted)")
     parser.add_argument("--json", action="store_true", help="Output raw JSON")
     args = parser.parse_args()
 
@@ -726,10 +728,10 @@ def main():
     report_path = save_report(health)
     health["report_path"] = str(report_path)
 
-    if args.emit_signal:
-        sig_path = emit_signal(health)
-        if not args.json:
-            print(f"Signal written to: {sig_path}")
+    # Always emit signal to keep organism awareness fresh
+    sig_path = emit_signal(health)
+    if not args.json:
+        print(f"Signal written to: {sig_path}")
 
     if args.json:
         print(json.dumps(health, indent=2, default=str))
