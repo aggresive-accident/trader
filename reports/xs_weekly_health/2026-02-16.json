@@ -1,0 +1,86 @@
+{
+  "timestamp": "2026-02-16T14:32:30.846767",
+  "status": "healthy",
+  "checks": [
+    {
+      "name": "win_rate",
+      "status": "INSUFFICIENT_DATA",
+      "live": null,
+      "baseline_mean": 0.4982001133786848,
+      "baseline_std": 0.30470274451812474,
+      "z_score": null,
+      "detail": "need 5 closed trades"
+    },
+    {
+      "name": "avg_return",
+      "status": "INSUFFICIENT_DATA",
+      "live": null,
+      "baseline_mean": 0.0026137458923675165,
+      "baseline_std": 0.04244497338486977,
+      "z_score": null,
+      "detail": "need 5 closed trades"
+    },
+    {
+      "name": "avg_duration",
+      "status": "INSUFFICIENT_DATA",
+      "live": null,
+      "baseline_mean": 14.206551668286362,
+      "baseline_std": 5.189296380410235,
+      "z_score": null,
+      "detail": "need 5 closed trades"
+    },
+    {
+      "name": "turnover",
+      "status": "PASS",
+      "live": 10.0,
+      "baseline_mean": 10.238578680203046,
+      "baseline_std": 3.129669411072737,
+      "z_score": -0.08,
+      "detail": "z=-0.08"
+    },
+    {
+      "name": "max_drawdown",
+      "status": "INSUFFICIENT_DATA",
+      "live": null,
+      "baseline_mean": 0.4840301983880508,
+      "baseline_std": 0.5019918572736468,
+      "z_score": null,
+      "detail": "need 4 weeks"
+    },
+    {
+      "name": "sharpe_4w",
+      "status": "INSUFFICIENT_DATA",
+      "live": null,
+      "baseline_mean": -0.004395635475501931,
+      "baseline_std": 1.2605228569133309,
+      "z_score": null,
+      "detail": "need 4 weeks"
+    }
+  ],
+  "live_metrics": {
+    "win_rate": null,
+    "avg_return": null,
+    "avg_duration": null,
+    "turnover": 10.0,
+    "max_drawdown": null,
+    "sharpe_4w": null,
+    "closed_trades": 0,
+    "open_positions": 10,
+    "weeks_running": 2,
+    "total_rebalances": 1,
+    "total_trades": 10,
+    "realized_pnl": 0.0
+  },
+  "baselines_meta": {
+    "source": "/home/dev/workspace/trader/cross_backtest_trades.jsonl",
+    "round_trips": 1008,
+    "windows": 196,
+    "date_range": "2022-02-15 to 2025-12-30"
+  },
+  "false_positive_tracker": {
+    "total_alerts": 0,
+    "false_positives": 0,
+    "recalibration_triggered": false
+  },
+  "report_path": "/home/dev/workspace/trader/reports/xs_weekly_health/2026-02-16.json"
+}

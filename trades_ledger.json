@@ -404,29 +404,39 @@
       "close_price": null,
       "pnl": null,
       "pnl_pct": null
+    },
+    {
+      "id": "T0028",
+      "timestamp": "2026-02-18T14:30:47.005769",
+      "symbol": "XOM",
+      "action": "SELL",
+      "qty": 1.0,
+      "price": 147.9,
+      "strategy": "momentum",
+      "reason": "signal exit: strength=-0.33, down -3.3%",
+      "order_id": "4119a6c0-941f-466c-86e2-279147bdf0c5",
+      "closed_at": "2026-02-18T14:30:47.005775",
+      "close_price": 147.9,
+      "pnl": 8.159999999999997,
+      "pnl_pct": 5.8394160583941535
+    },
+    {
+      "id": "T0029",
+      "timestamp": "2026-02-18T16:15:46.876224",
+      "symbol": "XLE",
+      "action": "SELL",
+      "qty": 1.0,
+      "price": 54.49,
+      "strategy": "momentum",
+      "reason": "max hold 20d reached (held 20d)",
+      "order_id": "61dde56f-bc0c-4c43-ba0b-7585380ab201",
+      "closed_at": "2026-02-18T16:15:46.876229",
+      "close_price": 54.49,
+      "pnl": 3.700000000000003,
+      "pnl_pct": 7.284898602087031
     }
   ],
   "positions": {
-    "XOM": {
-      "symbol": "XOM",
-      "qty": 1,
-      "avg_entry": 139.74,
-      "strategy": "momentum",
-      "opened_at": "2026-01-29T16:11:37.539574",
-      "trade_ids": [
-        "T0023"
-      ]
-    },
-    "XLE": {
-      "symbol": "XLE",
-      "qty": 1,
-      "avg_entry": 50.79,
-      "strategy": "momentum",
-      "opened_at": "2026-01-29T16:11:38.108617",
-      "trade_ids": [
-        "T0024"
-      ]
-    },
     "NVDA": {
       "symbol": "NVDA",
       "qty": 260,
@@ -438,5 +448,5 @@
       ]
     }
   },
-  "updated_at": "2026-02-09T19:25:41.119499"
+  "updated_at": "2026-02-18T16:15:46.876318"
 }

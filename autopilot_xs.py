@@ -429,9 +429,40 @@ def update_ledger_from_trades(ledger: dict, trades: list[dict], timestamp: str):
     ledger["positions"] = list(positions.values())
 
 
+def was_market_open_on(date) -> bool:
+    """Check if the market was open on a given date using Alpaca calendar API."""
+    try:
+        from alpaca.trading.requests import GetCalendarRequest
+
+        trader = Trader()
+        req = GetCalendarRequest(start=date, end=date)
+        cal = trader.trading.get_calendar(req)
+        return len(cal) > 0
+    except Exception as e:
+        log.warning(f"Calendar API check failed: {e}")
+        # If we can't check, assume it was open (safe: worst case we skip catch-up)
+        return True
+
+
+def already_rebalanced_this_week(state: dict, now: datetime) -> bool:
+    """Check if we already rebalanced in the current Mon-Fri week."""
+    last = state.get("last_rebalance")
+    if not last:
+        return False
+    last_dt = datetime.fromisoformat(last)
+    if last_dt.tzinfo is None:
+        last_dt = last_dt.replace(tzinfo=ET)
+    # Monday of this week
+    week_start = (now - timedelta(days=now.weekday())).date()
+    return last_dt.date() >= week_start
+
+
 def should_rebalance(state: dict, force: bool = False) -> tuple[bool, str]:
     """
     Check if rebalance is due.
+
+    Runs on Monday 9:35 ET. If Monday was a market holiday,
+    catches up on the first open trading day of the week.
 
     Returns: (should_rebalance, reason)
     """
@@ -440,28 +471,34 @@ def should_rebalance(state: dict, force: bool = False) -> tuple[bool, str]:
 
     now = datetime.now(ET)
 
-    # Check day of week
-    if now.weekday() != REBALANCE_DAY:
-        return False, f"not rebalance day (today={now.strftime('%A')}, rebalance=Monday)"
+    # Weekend: skip
+    if now.weekday() > 4:
+        return False, "weekend"
 
-    # Check time
+    # Check time (must be past 9:35 ET regardless of day)
     if now.hour < REBALANCE_HOUR or (now.hour == REBALANCE_HOUR and now.minute < REBALANCE_MINUTE):
         return False, f"before rebalance time ({REBALANCE_HOUR}:{REBALANCE_MINUTE:02d} ET)"
 
-    # Check if already rebalanced today
-    last = state.get("last_rebalance")
-    if last:
-        last_dt = datetime.fromisoformat(last)
-        if last_dt.date() == now.date():
-            return False, "already rebalanced today"
+    # Already rebalanced this week: skip
+    if already_rebalanced_this_week(state, now):
+        return False, "already rebalanced this week"
 
-    # Check market hours
+    # Check market is open right now
     trader = Trader()
     clock = trader.get_clock()
     if not clock.get("is_open"):
         return False, f"market closed ({clock.get('phase', 'unknown')})"
 
-    return True, "rebalance due"
+    # Monday: always eligible
+    if now.weekday() == REBALANCE_DAY:
+        return True, "rebalance due"
+
+    # Tue-Fri: catch up only if Monday was a holiday
+    monday = (now - timedelta(days=now.weekday())).date()
+    if not was_market_open_on(monday):
+        return True, f"catch-up rebalance (Monday {monday} was holiday)"
+
+    return False, f"not rebalance day (Monday {monday} was open, missed window)"
 
 
 # === CLI Commands ===
